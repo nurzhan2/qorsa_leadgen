@@ -1,0 +1,50 @@
+# Keyword dictionary used by matcher.py to decide whether a post is an order
+# request. Weights only affect priority (matched_weight sent to the core in
+# raw.matched_weight) - they do NOT feed the core's own lead scoring, which
+# has its own independent rules (see the Java core's README).
+#
+# Add/remove keywords freely, no code changes needed. Matching is
+# case-insensitive, substring-based, on whitespace-collapsed text.
+
+intent:
+  # Direct signals that someone is placing/looking for an order right now.
+  weight: 3
+  keywords:
+    - "нужен сайт"
+    - "ищу разработчика"
+    - "требуется бот"
+    - "нужна интеграция"
+    - "кто делает сайты"
+    - "нужен лендинг"
+    - "ищу веб-студию"
+    - "нужна автоматизация"
+    - "нужен телеграм бот"
+    - "разработка под ключ"
+
+domain:
+  # Topic words (web/bots/AI/integrations). Alone, these are just chatter -
+  # matcher.py only counts them as a lead when paired with a budget signal.
+  weight: 2
+  keywords:
+    - "сайт"
+    - "лендинг"
+    - "бот"
+    - "телеграм бот"
+    - "интеграция"
+    - "нейросеть"
+    - "ии"
+    - "gpt"
+    - "чат-бот"
+    - "crm"
+    - "приложение"
+
+budget:
+  # Budget markers. Also sets budget_flag=true, which the core scores
+  # directly via raw.budgetMentioned (+20, see core README).
+  weight: 1
+  keywords:
+    - "бюджет"
+    - "оплата"
+    - "тз"
+    - "прайс"
+    - "стоимость"

@@ -1,0 +1,16 @@
+# Channels/chats to monitor. The account running this worker must already
+# be a member of each one - Telethon can only listen to chats it has joined
+# manually beforehand (this worker never joins anything on its own).
+#
+# Each entry needs either `username` (public @handle, with or without the
+# @) or `id` (numeric chat id, for private chats with no public username -
+# you can get this from Telethon once, e.g. via `client.get_dialogs()`).
+#
+# The two entries below are PLACEHOLDERS - replace them with real
+# order-channel usernames/ids before running the monitor for real. See
+# README.md for where to find such channels.
+
+channels:
+  - username: "example_order_channel_placeholder"
+  - username: "another_example_channel_placeholder"
+  # - id: -1001234567890   # example of a private-chat entry by numeric id
