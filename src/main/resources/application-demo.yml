@@ -1,0 +1,8 @@
+# Activated via -Dspring-boot.run.profiles=demo (or SPRING_PROFILES_ACTIVE=demo).
+# Turns on DemoSeeder, which pushes fake companies through the real ingest
+# pipeline on startup so you can see dedup + scoring work without any real
+# scraper worker connected.
+
+logging:
+  level:
+    kz.qorsa.leadgen: DEBUG

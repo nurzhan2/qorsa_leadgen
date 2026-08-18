@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: qorsa-leadgen
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:qorsa_leadgen}
+    username: ${DB_USER:qorsa}
+    password: ${DB_PASSWORD:qorsa}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # Flyway owns the schema; Hibernate only validates the entities against it.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# Weights and thresholds for kz.qorsa.leadgen.service.ScoringService.
+# Tune freely - none of this is hardcoded in the scoring logic.
+leadgen:
+  scoring:
+    no-site-weight: 40
+    direct-intent-weight: 35
+    competitor-negative-review-weight: 30
+    budget-mentioned-weight: 20
+    contact-and-geo-weight: 10
+    fuzzy-name-threshold: 82
+    hot-threshold: 70
+    qualified-threshold: 40
+    # Reserved for a future site-audit worker; not evaluated yet.
+    pagespeed-weight: 30
+    pagespeed-threshold: 50
+    audit-fails-weight: 20
+    audit-fails-threshold: 10
+
+logging:
+  level:
+    kz.qorsa.leadgen: INFO

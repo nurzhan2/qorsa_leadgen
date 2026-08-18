@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: qorsa_leadgen_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-qorsa_leadgen}
+      POSTGRES_USER: ${DB_USER:-qorsa}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-qorsa}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - qorsa_leadgen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-qorsa} -d ${DB_NAME:-qorsa_leadgen}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  qorsa_leadgen_pgdata:
