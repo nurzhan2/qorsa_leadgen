@@ -28,7 +28,7 @@ public class LeadController {
 
     @GetMapping("/top")
     public List<LeadResponse> top(@RequestParam(defaultValue = "20") int limit) {
-        return leadRepository.findAllByOrderByScoreDesc(PageRequest.of(0, limit))
+        return leadRepository.findTopWithCompany(PageRequest.of(0, limit))
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -37,8 +37,8 @@ public class LeadController {
     @GetMapping
     public List<LeadResponse> byStatus(@RequestParam(required = false) LeadStatus status) {
         List<Lead> leads = status != null
-                ? leadRepository.findByStatusOrderByScoreDesc(status)
-                : leadRepository.findAllByOrderByScoreDesc(PageRequest.of(0, 100));
+                ? leadRepository.findByStatusWithCompany(status)
+                : leadRepository.findTopWithCompany(PageRequest.of(0, 100));
         return leads.stream().map(this::toResponse).toList();
     }
 

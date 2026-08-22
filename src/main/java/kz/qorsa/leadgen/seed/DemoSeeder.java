@@ -129,7 +129,7 @@ public class DemoSeeder implements CommandLineRunner {
                 response.getCreated(), response.getMerged(), response.getLeadsScored(), response.getHotCount());
 
         log.info("Top 5 leads after seeding:");
-        List<Lead> top5 = leadRepository.findAllByOrderByScoreDesc(PageRequest.of(0, 5));
+        List<Lead> top5 = leadRepository.findTopWithCompany(PageRequest.of(0, 5));
         for (Lead lead : top5) {
             log.info(" - [{}] {} score={} status={} reason=\"{}\"",
                     lead.getCompany().getCity(),
