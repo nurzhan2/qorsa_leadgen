@@ -201,6 +201,70 @@ config (`pagespeed-weight`/`pagespeed-threshold`,
 `audit-fails-weight`/`audit-fails-threshold`) but not evaluated yet, since no
 source of that data exists in this increment.
 
+## Экспорт лидов в Google Sheets
+
+`kz.qorsa.leadgen.export` — программная (сервисный аккаунт, без MCP и без
+ручного экспорта) синхронизация лидов в Google Таблицу. Если не настроено —
+ядро работает как обычно, просто без экспорта (один WARN в логе при старте).
+
+### Что делает
+
+- Раскладывает лиды по вкладкам: **🔥 Тёплые** (HOT + QUALIFIED), **❄️ Холодные**
+  (всё остальное), **📊 Все**, плюс отдельная вкладка на каждый источник
+  (`TG заявки`, `2GIS`, `Google Maps`, ...) — создаётся автоматически, как
+  только для источника появился хотя бы один лид.
+- Колонки: Дата | Компания | Ниша | Телефон | Email | Мессенджер | Город |
+  Источник | Score | Статус | Причина | Ссылка.
+- Оформление: жирная тёмная шапка с заморозкой первой строки, автоширина
+  колонок, чередование строк, автофильтр, условная заливка по Score (≥70
+  зелёный, 40–69 жёлтый, <40 серый) и по статусу (HOT — красный жирный,
+  QUALIFIED — оранжевый, NEW — серый).
+- Каждый синк **полностью перезаписывает** данные вкладки (clear + write) —
+  дублей строк не будет, сколько раз ни запускай.
+- Запускается по расписанию (`SHEETS_SYNC_DELAY_MS`, по умолчанию 5 минут)
+  и вручную: `POST /api/v1/export/sheets`.
+
+### Настройка, шаг за шагом
+
+1. **Создать проект в Google Cloud Console** (если ещё нет):
+   [console.cloud.google.com](https://console.cloud.google.com) → выбрать/создать
+   проект вверху страницы.
+2. **Включить Google Sheets API**: в меню слева →
+   *APIs & Services → Library* → найти "Google Sheets API" → **Enable**.
+3. **Создать сервисный аккаунт**: *APIs & Services → Credentials* →
+   **Create Credentials → Service account** → задать любое имя (например
+   `qorsa-leadgen-sheets`) → Create and Continue → роли не обязательны, можно
+   пропустить → Done.
+4. **Скачать JSON-ключ**: открыть созданный сервисный аккаунт → вкладка
+   **Keys** → **Add Key → Create new key → JSON** → файл скачается
+   автоматически. Положить его, например, в `credentials/qorsa-leadgen-sheets.json`
+   в корне проекта (эта папка уже в `.gitignore` — ключ никогда не попадёт в git).
+5. **Скопировать email сервисного аккаунта** — он выглядит как
+   `qorsa-leadgen-sheets@<project-id>.iam.gserviceaccount.com` (виден на
+   странице сервисного аккаунта или внутри самого JSON-ключа, поле `client_email`).
+6. **Создать Google Таблицу** (или взять существующую) и **расшарить её на
+   этот email** с правом **Редактор** (Share → вставить email сервисного
+   аккаунта → Editor → Send). Без этого шага API вернёт 403 — сервисный
+   аккаунт не появляется в таблицах "сам по себе", в отличие от обычного
+   Google-аккаунта.
+7. **Взять spreadsheet_id из URL** таблицы:
+   `https://docs.google.com/spreadsheets/d/ЭТОТ_КУСОК_ID/edit` — нужен именно
+   средний фрагмент между `/d/` и `/edit`.
+8. Прописать в окружении ядра (`.env` / переменные окружения процесса):
+
+   ```
+   GOOGLE_CREDENTIALS_PATH=credentials/qorsa-leadgen-sheets.json
+   SHEETS_SPREADSHEET_ID=<spreadsheet_id из шага 7>
+   SHEETS_SYNC_DELAY_MS=300000
+   ```
+
+9. Перезапустить ядро. В логе при старте должно появиться `Sheets export
+   enabled, target spreadsheet ...`. Если переменные не заданы — вместо этого
+   будет `Sheets export disabled: set GOOGLE_CREDENTIALS_PATH and
+   SHEETS_SPREADSHEET_ID to enable it`, и ядро продолжит работать как обычно.
+
+Ручной запуск синка в любой момент: `curl -X POST http://localhost:8081/api/v1/export/sheets`.
+
 ## How to add a new source
 
 You do **not** touch this service. Write a new Python worker that:
@@ -217,6 +281,12 @@ Dedup and scoring apply automatically. If the new source needs a scoring
 signal that doesn't exist yet, that's a small, explicit change to
 `ScoringService`/`ScoringProperties` — not a change to how ingest works.
 
+Two workers already exist as reference: `workers/telegram_monitor/` (reads a
+Telegram channel's order-post stream) and `workers/twogis/` (pulls local
+businesses with no website out of the 2GIS Catalog API) — both are
+self-contained Python processes that only ever talk to this core over
+`POST /api/v1/companies/ingest`, exactly like the recipe above.
+
 ## Package layout
 
 ```
@@ -227,5 +297,6 @@ kz.qorsa.leadgen
 ├── repository  CompanyRepository, LeadRepository
 ├── service     NormalizationUtil, DedupService, ScoringService, IngestService
 ├── web         IngestController, LeadController, GlobalExceptionHandler, dto/
+├── export      SheetsExporter, SheetsExportProperties, SheetsExportController
 └── seed        DemoSeeder (@Profile("demo"))
 ```

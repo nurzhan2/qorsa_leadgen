@@ -35,3 +35,6 @@ venv/
 # Telethon session files - equivalent to a logged-in credential, never commit
 *.session
 *.session-journal
+
+# Google service-account credentials (Sheets export) - never commit
+credentials/*.json

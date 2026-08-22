@@ -42,6 +42,13 @@ leadgen:
     pagespeed-threshold: 50
     audit-fails-weight: 20
     audit-fails-threshold: 10
+  # Google Sheets export (kz.qorsa.leadgen.export). Both env vars must be set
+  # for it to do anything - if either is blank, the export disables itself
+  # with one WARN at startup and the core runs normally without it.
+  sheets:
+    credentials-path: ${GOOGLE_CREDENTIALS_PATH:}
+    spreadsheet-id: ${SHEETS_SPREADSHEET_ID:}
+    fixed-delay-ms: ${SHEETS_SYNC_DELAY_MS:300000}
 
 logging:
   level:
