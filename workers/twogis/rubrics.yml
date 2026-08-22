@@ -1,0 +1,48 @@
+# Business categories to search for. `query` is combined with each city
+# name into a free-text 2GIS search (e.g. "стоматология Казань") - this
+# worker uses 2GIS's free-text search rather than numeric rubric_id filters,
+# since exact rubric_id values differ per 2GIS taxonomy revision and
+# require calling 2GIS's own rubric list endpoint to get right (see
+# README.md "Уточнение категорий через rubric_id" for how to switch to
+# that if you want stricter filtering later).
+#
+# Picked for being small local businesses that commonly have no website -
+# exactly the "нет сайта" signal the core scores highly. Add/remove freely.
+
+rubrics:
+  - name: "Кафе"
+    query: "кафе"
+  - name: "Рестораны"
+    query: "ресторан"
+  - name: "Стоматологии"
+    query: "стоматология"
+  - name: "Автосервисы"
+    query: "автосервис"
+  - name: "Салоны красоты"
+    query: "салон красоты"
+  - name: "Фитнес-клубы"
+    query: "фитнес клуб"
+  - name: "Магазины одежды"
+    query: "магазин одежды"
+  - name: "Юридические услуги"
+    query: "юридические услуги"
+  - name: "Строительные компании"
+    query: "строительная компания"
+  - name: "Медицинские клиники"
+    query: "медицинская клиника"
+  - name: "Парикмахерские"
+    query: "парикмахерская"
+  - name: "Барбершопы"
+    query: "барбершоп"
+  - name: "Ветеринарные клиники"
+    query: "ветеринарная клиника"
+  - name: "Ремонт техники"
+    query: "ремонт техники"
+  - name: "Доставка еды"
+    query: "доставка еды"
+  - name: "Детские развивающие центры"
+    query: "детский развивающий центр"
+  - name: "Фотостудии"
+    query: "фотостудия"
+  - name: "Турагентства"
+    query: "турагентство"

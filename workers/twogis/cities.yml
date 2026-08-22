@@ -1,0 +1,22 @@
+# Cities to search in 2GIS, one search pass per (city × rubric) pair.
+# Add/remove freely - no code changes needed. City names are used as
+# free-text search terms combined with each rubric's query (e.g.
+# "кафе Новосибирск"), so use the name as people/2GIS would recognize it.
+
+cities:
+  - "Москва"
+  - "Санкт-Петербург"
+  - "Новосибирск"
+  - "Екатеринбург"
+  - "Казань"
+  - "Нижний Новгород"
+  - "Челябинск"
+  - "Красноярск"
+  - "Самара"
+  - "Уфа"
+  - "Ростов-на-Дону"
+  - "Омск"
+  - "Краснодар"
+  - "Воронеж"
+  - "Пермь"
+  - "Волгоград"
