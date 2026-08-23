@@ -42,6 +42,8 @@ async def _run() -> None:
         target_per_day=settings.target_per_day,
         run_once=settings.run_once,
         verify_ssl=settings.verify_ssl,
+        fetch_details=settings.fetch_details,
+        max_details=settings.max_details_or_default(),
     )
     if not settings.verify_ssl:
         log.warning("zakupki.tls_verification_disabled", hint="see README.md before using this in production")

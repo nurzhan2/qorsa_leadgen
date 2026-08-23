@@ -116,3 +116,126 @@ def _safe_field(card, extractor, field_name: str):
     except Exception as exc:  # noqa: BLE001 - a single field must never take down the whole card
         log.warning("zakupki.field_parse_failed", field=field_name, error=str(exc))
         return None
+
+
+# --- Purchase detail/card page (a SECOND page per purchase - see README) ---
+#
+# The detail page uses TWO DIFFERENT label/value CSS class pairs in
+# different sections of the same page (verified live while building this):
+#   - the summary header and its side panel: .cardMainInfo__title / .cardMainInfo__content
+#   - everything below it: .section__title / .section__info
+# Deliberately NOT scoped to a specific wrapping container class (e.g.
+# ".cardMainInfo__section"): the "Начальная цена" (budget) label/value pair
+# is wrapped in a plain "<div class='price'>" instead, with no
+# "cardMainInfo__section" class at all - also verified live. Scanning by
+# title class and then looking at the title element's OWN immediate parent
+# for the matching value class works regardless of what that parent's
+# class happens to be, so it isn't tripped up by this kind of
+# inconsistency in the site's own markup.
+
+_DETAIL_LABEL_VALUE_CLASS_PAIRS = (
+    (".cardMainInfo__title", ".cardMainInfo__content"),
+    (".section__title", ".section__info"),
+)
+
+
+def _detail_field_by_label(soup, label_keyword: str) -> str | None:
+    keyword_lower = label_keyword.lower()
+    for title_selector, value_selector in _DETAIL_LABEL_VALUE_CLASS_PAIRS:
+        for title_el in soup.select(title_selector):
+            label = _text_or_none(title_el)
+            if not label or keyword_lower not in label.lower():
+                continue
+            parent = title_el.parent
+            if parent is None:
+                continue
+            value_el = parent.select_one(value_selector)
+            if value_el is not None:
+                return _text_or_none(value_el)
+    return None
+
+
+def _extract_law_type(soup) -> str | None:
+    """The law type ("44-ФЗ"/"223-ФЗ") is the summary header's own direct
+    text, with a nested <span> (the purchase method name) immediately
+    after it - .stripped_strings yields both in document order, so the
+    FIRST one is exactly the law type, without needing to strip out the
+    nested span's text some other way."""
+    title_el = soup.select_one(".cardMainInfo__title")
+    if title_el is None:
+        return None
+    for text in title_el.stripped_strings:
+        return text
+    return None
+
+
+def parse_money(text: str | None) -> float | None:
+    """Pure: "8 398 003,33 ₽" (or with a non-breaking space, or plain
+    "8398003.33") -> 8398003.33. None for anything that doesn't reduce to
+    a parseable number."""
+    if not text:
+        return None
+    cleaned = text.replace("\xa0", "").strip()
+    cleaned = re.sub(r"[^0-9,.]", "", cleaned)
+    if not cleaned:
+        return None
+    cleaned = cleaned.replace(",", ".")
+    # Guard against multiple '.' after the replace above (e.g. a thousands
+    # separator that was itself a '.') - keep only the last one as the
+    # decimal point.
+    parts = cleaned.split(".")
+    if len(parts) > 2:
+        cleaned = "".join(parts[:-1]) + "." + parts[-1]
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def parse_purchase_card(html: str) -> dict:
+    """Pure: parses ONE purchase's detail/card page (fetched separately
+    via ZakupkiClient.fetch_purchase_details) into the fields the
+    search-results page doesn't carry. Every field is independently
+    try/except-guarded - a missing/malformed field never crashes the
+    whole card, and this never raises even for empty/garbage input.
+
+    NOTE (verified live while building this): a customer's own ИНН is
+    often simply NOT present on this page for standard 44-FZ notices -
+    the only "ИНН" label observed in testing belonged to the Federal
+    Treasury's payment routing details, a different entity entirely, and
+    is deliberately NOT what this looks for. `customer_inn` coming back
+    None is expected and correct in that case, not a parsing bug.
+    """
+    result = {
+        "subject": None,
+        "budget": None,
+        "deadline": None,
+        "law_type": None,
+        "customer_phone": None,
+        "customer_inn": None,
+        "region": None,
+    }
+    if not html:
+        return result
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("zakupki.detail_page_parse_failed", error=str(exc))
+        return result
+
+    result["subject"] = _safe_field(soup, lambda s: _detail_field_by_label(s, "объект закупки"), "subject")
+    result["deadline"] = _safe_field(
+        soup, lambda s: _detail_field_by_label(s, "окончание подачи"), "deadline"
+    )
+    result["customer_phone"] = _safe_field(
+        soup, lambda s: _detail_field_by_label(s, "контактного телефона"), "customer_phone"
+    )
+    result["customer_inn"] = _safe_field(soup, lambda s: _detail_field_by_label(s, "инн заказчика"), "customer_inn")
+    result["region"] = _safe_field(soup, lambda s: _detail_field_by_label(s, "регион"), "region")
+    result["law_type"] = _safe_field(soup, _extract_law_type, "law_type")
+
+    raw_price = _safe_field(soup, lambda s: _detail_field_by_label(s, "начальная цена"), "budget")
+    result["budget"] = parse_money(raw_price)
+
+    return result

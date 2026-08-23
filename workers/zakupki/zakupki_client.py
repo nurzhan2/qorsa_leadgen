@@ -73,3 +73,35 @@ class ZakupkiClient:
             raise ZakupkiClientError(f"{response.status_code} for {keyword!r} page {page}")
 
         return response.text
+
+    @retry(
+        retry=retry_if_exception_type((ZakupkiRateLimitError, ZakupkiServerError, httpx.TransportError)),
+        wait=wait_exponential(multiplier=2, min=2, max=60),
+        stop=stop_after_attempt(5),
+        reraise=True,
+    )
+    async def fetch_purchase_details(self, url: str) -> str:
+        """Returns the raw HTML of one purchase's own detail/card page -
+        a SECOND request per purchase, on top of the search page. Some
+        notice links (e.g. .../ea20/view/...) 302-redirect to the site's
+        canonical viewer (.../zk20/view/...); `follow_redirects=True`
+        handles that transparently (verified live while building this).
+        Gated by FETCH_DETAILS/MAX_DETAILS in runner.py precisely because
+        this doubles (or worse) the request volume - see README.md
+        "Два уровня запросов"."""
+        try:
+            response = await self._client.get(url, follow_redirects=True)
+        finally:
+            await asyncio.sleep(self._delay)
+
+        if response.status_code == 429:
+            log.warning("zakupki.rate_limited", url=url)
+            raise ZakupkiRateLimitError(f"429 for {url}")
+        if response.status_code >= 500:
+            log.warning("zakupki.server_error", url=url, status=response.status_code)
+            raise ZakupkiServerError(f"{response.status_code} for {url}")
+        if response.status_code >= 400:
+            log.error("zakupki.client_error", url=url, status=response.status_code)
+            raise ZakupkiClientError(f"{response.status_code} for {url}")
+
+        return response.text

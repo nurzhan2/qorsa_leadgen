@@ -319,7 +319,7 @@ public class SheetsExporter {
                     sourceLabel(company.getSource()),
                     lead.getScore(),
                     lead.getStatus().name(),
-                    nullToEmpty(lead.getHotReason()),
+                    displayReason(lead),
                     nullToEmpty(company.getSourceUrl())));
         }
         return rows;
@@ -364,6 +364,56 @@ public class SheetsExporter {
             case "TOLL_FREE" -> "8-800";
             default -> "";
         };
+    }
+
+    /**
+     * The "Причина" column is normally just the scoring reasons
+     * (lead.getHotReason()) - for госзакупки leads there's no other
+     * column showing the purchase subject/budget, so this appends a
+     * short summary from {@code raw.subject}/{@code raw.budget} when
+     * either is present, keeping the sheet self-explanatory without
+     * adding two more columns that would be blank for every other source.
+     */
+    static String displayReason(Lead lead) {
+        String reason = nullToEmpty(lead.getHotReason());
+        Company company = lead.getCompany();
+        if (company.getSource() != LeadSource.ZAKUPKI || company.getRaw() == null) {
+            return reason;
+        }
+
+        Object subject = company.getRaw().get("subject");
+        Object budget = company.getRaw().get("budget");
+        if (subject == null && budget == null) {
+            return reason;
+        }
+
+        StringBuilder summary = new StringBuilder("Госзакупка: ");
+        summary.append(subject != null ? subject : "предмет не указан");
+        if (budget != null) {
+            summary.append(", бюджет ").append(formatBudget(budget)).append(" ₽");
+        }
+
+        return reason.isEmpty() ? summary.toString() : reason + " | " + summary;
+    }
+
+    /** "8398003.33" (or any Number) -> "8 398 003" - space-grouped, no decimals (a spreadsheet cell doesn't need kopecks). */
+    static String formatBudget(Object budgetValue) {
+        if (!(budgetValue instanceof Number number)) {
+            return String.valueOf(budgetValue);
+        }
+        long rounded = Math.round(number.doubleValue());
+        String digits = Long.toString(Math.abs(rounded));
+        StringBuilder grouped = new StringBuilder();
+        int count = 0;
+        for (int i = digits.length() - 1; i >= 0; i--) {
+            grouped.append(digits.charAt(i));
+            count++;
+            if (count % 3 == 0 && i != 0) {
+                grouped.append(' ');
+            }
+        }
+        String result = grouped.reverse().toString();
+        return rounded < 0 ? "-" + result : result;
     }
 
     private static String formatDate(Instant instant) {

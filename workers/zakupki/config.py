@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     max_pages_per_keyword: int = 3
     request_delay_seconds: float = 2.0
 
+    # Visiting each purchase's own detail/card page (for budget/subject/
+    # deadline/phone) is a SECOND request per purchase, on top of the
+    # search page - see README.md "Два уровня запросов". FETCH_DETAILS
+    # lets you turn that off entirely; MAX_DETAILS caps how many detail
+    # pages get fetched in one run regardless (None = same as
+    # TARGET_PER_DAY, since there's never a reason to fetch more detail
+    # pages than leads we could possibly send).
+    fetch_details: bool = True
+    max_details: int | None = None
+
     # zakupki.gov.ru's TLS certificate is issued by a Russian CA
     # ("Минцифры России"/"Russian Trusted CA") that isn't in most default
     # OS/browser trust stores outside Russia, so verification fails with a
@@ -45,6 +55,9 @@ class Settings(BaseSettings):
     verify_ssl: bool = True
 
     keywords_file: Path = MODULE_DIR / "keywords.yml"
+
+    def max_details_or_default(self) -> int:
+        return self.max_details if self.max_details is not None else self.target_per_day
 
 
 class KeywordsConfig(BaseModel):

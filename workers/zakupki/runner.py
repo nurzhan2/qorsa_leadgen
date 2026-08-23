@@ -1,14 +1,15 @@
 """Orchestrates one full pass: keyword -> paginated search -> parse ->
-dedup -> map -> batch -> send to core. Stops once TARGET_PER_DAY companies
-have been sent, so a single run never scrapes indefinitely.
+dedup -> (optionally) fetch each purchase's own detail page -> map ->
+batch -> send to core. Stops once TARGET_PER_DAY companies have been sent,
+so a single run never scrapes indefinitely.
 """
 
 import structlog
 
 from .core_client import CoreClient, RawCompanyRequest
 from .dedup import DedupTracker
-from .mapper import map_purchase_to_lead
-from .parser import parse_search_html
+from .mapper import map_purchase_to_lead, merge_purchase_with_details
+from .parser import parse_purchase_card, parse_search_html
 from .zakupki_client import ZakupkiClient, ZakupkiClientError
 
 log = structlog.get_logger(__name__)
@@ -23,6 +24,7 @@ class ZakupkiRunner:
         self._client = client
         self._core = core
         self._dedup = DedupTracker()
+        self._details_fetched = 0
 
     async def run_once(self) -> dict:
         batch: list[RawCompanyRequest] = []
@@ -58,7 +60,10 @@ class ZakupkiRunner:
                         continue
                     self._dedup.mark(reg_number)
 
-                    lead = map_purchase_to_lead(purchase, keyword=keyword)
+                    details = await self._maybe_fetch_details(purchase)
+                    enriched = merge_purchase_with_details(purchase, details)
+
+                    lead = map_purchase_to_lead(enriched, keyword=keyword)
                     if lead is None:
                         skipped_no_customer += 1
                         continue
@@ -79,6 +84,7 @@ class ZakupkiRunner:
                     page=page,
                     found=len(purchases),
                     sent_so_far=sent,
+                    details_fetched=self._details_fetched,
                 )
 
                 if len(purchases) < self._settings.results_per_page:
@@ -90,7 +96,27 @@ class ZakupkiRunner:
             "skipped_duplicates": skipped_duplicates,
             "skipped_no_customer": skipped_no_customer,
             "seen_total": len(self._dedup),
+            "details_fetched": self._details_fetched,
         }
+
+    async def _maybe_fetch_details(self, purchase: dict) -> dict | None:
+        """None means "didn't fetch" (disabled, cap reached, or no URL to
+        fetch) - merge_purchase_with_details() falls back gracefully."""
+        if not self._settings.fetch_details:
+            return None
+        if self._details_fetched >= self._settings.max_details_or_default():
+            return None
+        detail_url = purchase.get("detail_url")
+        if not detail_url:
+            return None
+
+        self._details_fetched += 1
+        try:
+            html = await self._client.fetch_purchase_details(detail_url)
+        except ZakupkiClientError:
+            log.error("zakupki.details_fetch_failed", reg_number=purchase.get("reg_number"))
+            return None
+        return parse_purchase_card(html)
 
     async def _send(self, batch: list[RawCompanyRequest]) -> None:
         if not batch:
