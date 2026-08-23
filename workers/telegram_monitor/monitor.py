@@ -80,6 +80,16 @@ class TelegramOrderMonitor:
         text = event.raw_text or ""
         match_result = self._matcher.match(text)
         if not match_result.matched:
+            if match_result.rejected_reason:
+                # A vacancy/hiring post that would otherwise have matched -
+                # never sent to the core, just visible when tuning keywords.
+                log.debug(
+                    "monitor.post_rejected",
+                    reason=match_result.rejected_reason,
+                    anti=match_result.matched_anti,
+                    order=match_result.matched_order,
+                    preview=text[:120],
+                )
             return
 
         post_key = (event.chat_id, event.id)
@@ -117,6 +127,13 @@ class TelegramOrderMonitor:
                 "channel": channel_label,
                 "matched_weight": match_result.weight,
                 "no_direct_contact": contact.no_direct_contact,
+                # Always true here (a rejected/non-matching post already
+                # returned above) - kept explicit so anyone inspecting a
+                # lead's raw data downstream doesn't have to infer it, and
+                # so this stays meaningful if the match/reject logic ever
+                # grows a matched-but-not-an-order case in the future.
+                "is_order": match_result.is_order,
+                "matched_order": match_result.matched_order,
             },
         )
 

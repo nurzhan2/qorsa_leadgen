@@ -58,8 +58,12 @@ Fill in `.env`:
 TG_API_ID=123456
 TG_API_HASH=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TG_SESSION=leadgen_session
-CORE_URL=http://localhost:8080
+CORE_URL=http://localhost:8081
 LOG_LEVEL=INFO
+
+# channel_rater.py only - see "Оценка каналов" below.
+RATE_SAMPLE=50
+RATE_CHANNEL_DELAY_SECONDS=2.0
 ```
 
 Install dependencies (a virtualenv is recommended):
@@ -104,21 +108,53 @@ design - the worker only reads what's already visible to a member.
 
 ### 5. Tune `keywords.yml`
 
-Three categories, each just a weight and a list of phrases - edit freely,
-no code changes needed:
+Five sections, all plain YAML lists - edit freely, no code changes needed.
+`intent`/`domain`/`budget` also carry a `weight:` (used only for lead
+priority scoring); `anti_hiring`/`order_signals` are unweighted, used only
+for the accept/reject decision described below.
 
 - `intent` (weight 3): direct order signals ("нужен сайт", "ищу разработчика", ...).
   A post matches on its own if any of these appear.
 - `domain` (weight 2): topic words ("сайт", "бот", "crm", ...). Alone,
   these are just chatter - a domain hit only counts as a lead when paired
-  with a `budget` hit.
-- `budget` (weight 1): budget markers ("бюджет", "тз", "прайс", ...). Also
-  sets `raw.budgetMentioned = true`, which the core's scorer reads directly
-  (+20 points - see the core's README).
+  with an `order_signals` hit.
+- `budget` (weight 1): budget markers ("бюджет", "тз", "прайс", ...). Feeds
+  scoring only: sets `raw.budgetMentioned = true`, which the core's scorer
+  reads directly (+20 points - see the core's README).
+- `anti_hiring`: hiring/vacancy markers ("в штат", "оклад", "график работы",
+  "трудоустройство", ...). A post that *would* have matched gets **rejected**
+  (treated as a vacancy, never sent to the core) if one of these fires and
+  no `order_signals` keyword also fires.
+- `order_signals`: one-off-order markers ("разовая задача", "под ключ", "по
+  тз", "напишите в лс", ...). These **outweigh** `anti_hiring` - a post that
+  hits both ("в штат" *and* "разовая задача") is kept, not rejected, since
+  that combination reads more like a poorly-worded order than a real vacancy.
+  Also usable on their own: `domain` + `order_signals` is enough to match
+  even without an `intent` phrase.
 
 Matching is whole-word/whole-phrase, case-insensitive, on whitespace-
 collapsed text (so it won't, say, mistake "интеграции" for a hit on a
 keyword "ии").
+
+### Баланс: лучше лишний лид
+
+The matcher is deliberately biased toward **catching too much rather than
+too little**:
+
+- `intent` alone (with zero anti-hiring signal) is enough to match - no
+  second signal required.
+- A single `order_signals` hit is enough to save a post from anti-hiring
+  rejection even when several hiring markers are present.
+- Anti-hiring rejection only fires when nothing else says "this is really
+  an order" - it's a targeted filter for the obvious case (pure job-board
+  noise), not a strict gate.
+
+The reasoning: a manager skimming the lead list can dismiss a stray vacancy
+post in a second. A missed order is gone for good - the poster moves on and
+finds someone else. So when in doubt, the matcher lets it through and
+leaves the final call to a human. If a specific channel turns out to be
+mostly vacancy noise despite this, that's what `channel_rater.py` (below)
+is for - drop the channel, not the keyword balance.
 
 ### 6. Run it
 
@@ -126,9 +162,62 @@ keyword "ии").
 python -m workers.telegram_monitor.main
 ```
 
-Every matched post is logged (`monitor.lead_matched`) along with the core's
+Every matched order is logged (`monitor.lead_matched`) along with the core's
 response (`core_client.ingested`: created/merged/hotCount) so you can watch
-leads flow in real time.
+leads flow in real time. Posts that got rejected as vacancies are logged at
+DEBUG level only (`monitor.post_rejected`) and never sent to the core - set
+`LOG_LEVEL=DEBUG` in `.env` if you want to see (and tune against) what's
+being filtered out.
+
+## Оценка каналов (`channel_rater.py`)
+
+A standalone diagnostic tool, separate from the live monitor, that answers
+"is this channel in `channels.yml` actually worth watching?" by reading its
+**recent history** (not the live stream) and running every post through the
+same matcher.
+
+```bash
+# from the repo root, using the same TG_API_ID/TG_API_HASH/TG_SESSION as
+# the live monitor - it logs in the same way, no separate setup needed
+python -m workers.telegram_monitor.channel_rater
+```
+
+For each channel in `channels.yml` it reads the last `RATE_SAMPLE` posts
+(`.env`, default 50), classifies each as an order / a hiring post / noise,
+and prints a ranked table plus writes `channel_report.csv` next to this
+README, with columns:
+
+| Column | Meaning |
+|---|---|
+| `username` | as configured in `channels.yml` |
+| `подписан` | `да`/`нет` - `нет` means the account isn't a member, or the channel is otherwise unreachable (deleted, wrong username, access error) |
+| `total` | posts sampled |
+| `orders` | matched as a real order (`matched=true`) |
+| `hiring` | rejected as a vacancy post |
+| `noise` | didn't match anything |
+| `order_rate%` | `orders / total` |
+| `вердикт` | see below |
+
+Verdict thresholds (on `order_rate`):
+
+- **`ДЕРЖАТЬ`** (>= 15%) - clearly worth keeping.
+- **`СЛАБО`** (5-15%) - marginal, keep an eye on it.
+- **`ВЫКИНУТЬ`** (< 5%) - mostly noise/vacancies, consider dropping from `channels.yml`.
+- **`НЕДОСТУПЕН`** - the account isn't subscribed, or zero posts could be
+  read at all; there wasn't enough signal to judge the channel one way or
+  the other (distinct from `ВЫКИНУТЬ`, which means "we checked, it's weak").
+
+**Using it to clean up `channels.yml`**: run the rater, open
+`channel_report.csv`, sort by `order_rate%`, and remove the `ВЫКИНУТЬ` (and
+long-standing `НЕДОСТУПЕН`) entries from `channels.yml`. Re-run occasionally
+as channels change character over time - this is a manual, human decision,
+the same way choosing which channels to join in the first place is.
+
+It handles `FloodWaitError` and per-channel access errors the same way the
+live monitor does: log, skip that one channel (marked `НЕДОСТУПЕН`), and
+keep going rather than aborting the whole run; it also pauses
+`RATE_CHANNEL_DELAY_SECONDS` (`.env`, default 2s) between channels to stay
+polite to Telegram's rate limits.
 
 ## What gets sent to the core
 
@@ -144,10 +233,15 @@ contract):
 | `source`    | always `"TELEGRAM_ORDER"` |
 | `sourceUrl` | link to the exact post (`t.me/channel/msg_id`, or `t.me/c/...` for private chats) |
 | `hasSite`   | always `true` - we have no idea, and `false` would wrongly trigger the core's "+40 no site" rule |
-| `raw`       | `{ text, category, budgetMentioned, channel, matched_weight, no_direct_contact }` |
+| `raw`       | `{ text, category, budgetMentioned, channel, matched_weight, no_direct_contact, is_order, matched_order }` |
 
 `raw.budgetMentioned` is the one field the core's scorer actually consumes
-today (+20 points); the rest ride along for visibility/debugging.
+today (+20 points); the rest ride along for visibility/debugging. Every lead
+that reaches the core is by definition an order (vacancies are rejected
+before this point, see above) - `raw.is_order` is always `true` today, kept
+explicit for downstream clarity and in case the match logic ever grows a
+matched-but-not-an-order case. `raw.matched_order` lists which
+`order_signals` keywords fired on the post, if any.
 
 ## Duplicate handling
 
@@ -180,25 +274,31 @@ cd workers/telegram_monitor && pytest
 ```
 
 `test_matcher.py` and `test_extractor.py` run entirely on string fixtures -
-no network, no Telegram, no core required.
+no network, no Telegram, no core required. `test_channel_rater.py` covers
+the order-rate/verdict math directly, plus `rate_channel`/`rate_all` against
+a small in-memory fake standing in for the Telethon client (async tests, via
+`pytest-asyncio`) - also no real network or Telegram session required.
 
 ## Files
 
 ```
 telegram_monitor/
 ├── __init__.py
-├── config.py        # .env settings + channels.yml/keywords.yml loaders (pydantic)
-├── keywords.yml      # editable keyword dictionary
-├── channels.yml       # editable channel list (placeholders - fill in real ones)
-├── matcher.py         # post text -> is this an order request?
-├── extractor.py       # post text -> contact info
-├── core_client.py     # HTTP client to the Java core, with retries
-├── monitor.py          # Telethon wiring: listen, match, extract, send
-├── main.py             # entry point
+├── config.py           # .env settings + channels.yml/keywords.yml loaders (pydantic)
+├── keywords.yml        # editable keyword dictionary
+├── channels.yml        # editable channel list (placeholders - fill in real ones)
+├── matcher.py           # post text -> is this an order request, or a vacancy in disguise?
+├── extractor.py         # post text -> contact info
+├── core_client.py       # HTTP client to the Java core, with retries
+├── monitor.py            # Telethon wiring: listen, match, extract, send
+├── channel_rater.py       # standalone: rate channels.yml entries by history order_rate
+├── channel_report.csv     # generated by channel_rater.py - not committed
+├── main.py                # entry point (live monitor)
 ├── requirements.txt
 ├── .env.example
 └── tests/
     ├── conftest.py
     ├── test_matcher.py
-    └── test_extractor.py
+    ├── test_extractor.py
+    └── test_channel_rater.py
 ```

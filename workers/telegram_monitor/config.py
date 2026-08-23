@@ -30,11 +30,18 @@ class Settings(BaseSettings):
     tg_api_id: int
     tg_api_hash: str
     tg_session: str = "leadgen_session"
-    core_url: str = "http://localhost:8080"
+    core_url: str = "http://localhost:8081"
     log_level: str = "INFO"
 
     channels_file: Path = MODULE_DIR / "channels.yml"
     keywords_file: Path = MODULE_DIR / "keywords.yml"
+
+    # channel_rater.py only: how many recent posts to sample per channel,
+    # and how long to pause between channels (a separate, lighter-weight
+    # pacing knob than monitor.py's live POST_SEND_DELAY_SECONDS, since
+    # rating reads history in bulk rather than reacting to live messages).
+    rate_sample: int = 50
+    rate_channel_delay_seconds: float = 2.0
 
 
 class ChannelEntry(BaseModel):
@@ -71,6 +78,11 @@ class KeywordsConfig(BaseModel):
     intent: KeywordCategory
     domain: KeywordCategory
     budget: KeywordCategory
+    # Plain keyword lists (no weight) - used by Matcher for the
+    # accept/reject decision, not for scoring. See matcher.py and
+    # keywords.yml for how they interact.
+    anti_hiring: list[str] = Field(default_factory=list)
+    order_signals: list[str] = Field(default_factory=list)
 
 
 def load_channels(path: Path) -> ChannelsConfig:

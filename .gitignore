@@ -38,3 +38,6 @@ venv/
 
 # Google service-account credentials (Sheets export) - never commit
 credentials/*.json
+
+# Generated report, not source (workers/telegram_monitor/channel_rater.py)
+workers/telegram_monitor/channel_report.csv

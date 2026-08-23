@@ -1,10 +1,10 @@
-# Keyword dictionary used by matcher.py to decide whether a post is an order
-# request. Weights only affect priority (matched_weight sent to the core in
-# raw.matched_weight) - they do NOT feed the core's own lead scoring, which
-# has its own independent rules (see the Java core's README).
-#
-# Add/remove keywords freely, no code changes needed. Matching is
-# case-insensitive, substring-based, on whitespace-collapsed text.
+# Keyword dictionary used by matcher.py to decide whether a post is an
+# order request - and, just as importantly, whether it's actually a
+# hiring/vacancy post in disguise. All five sections are plain YAML lists
+# (intent/domain/budget also carry a weight, used only for priority
+# scoring, not for the accept/reject decision) - add/remove keywords
+# freely, no code changes needed. Matching is case-insensitive,
+# whole-word/phrase, on whitespace-collapsed text.
 
 intent:
   # Direct signals that someone is placing/looking for an order right now.
@@ -23,7 +23,7 @@ intent:
 
 domain:
   # Topic words (web/bots/AI/integrations). Alone, these are just chatter -
-  # matcher.py only counts them as a lead when paired with a budget signal.
+  # matcher.py only counts them as a lead when paired with an order signal.
   weight: 2
   keywords:
     - "сайт"
@@ -40,7 +40,9 @@ domain:
 
 budget:
   # Budget markers. Also sets budget_flag=true, which the core scores
-  # directly via raw.budgetMentioned (+20, see core README).
+  # directly via raw.budgetMentioned (+20, see core README). Separate from
+  # order_signals below - this one only feeds scoring, not the
+  # accept/reject decision (though the two lists naturally overlap).
   weight: 1
   keywords:
     - "бюджет"
@@ -48,3 +50,65 @@ budget:
     - "тз"
     - "прайс"
     - "стоимость"
+
+# Markers of a HIRING/VACANCY post ("in-house", not a one-off order). A
+# post that matched (intent, or domain+order_signals) gets REJECTED if one
+# of these fires and NOT ONE order_signals keyword also fires - see
+# matcher.py. The two channel types (job boards vs. freelance/order
+# boards) use overlapping language, so this is what tells them apart.
+anti_hiring:
+  - "в команду"
+  - "в штат"
+  - "в нашу компанию"
+  - "оклад"
+  - "заработная плата"
+  - "з/п от"
+  - "зарплата от"
+  - "график работы"
+  - "график 5/2"
+  - "полный рабочий день"
+  - "оформление по тк"
+  - "трудоустройство"
+  - "испытательный срок"
+  - "соцпакет"
+  - "требуется сотрудник"
+  - "на постоянную основу"
+  - "релокация"
+  - "вакансия открыта"
+  - "мы ищем"
+  - "в нашу студию"
+  - "штатный"
+  - "fulltime"
+  - "full-time"
+  - "удаленный сотрудник"
+
+# Markers of a ONE-OFF ORDER. Presence of any of these outweighs
+# anti_hiring (see matcher.py) - a post mentioning both "в штат" AND "разовая
+# задача" is far more likely a poorly-worded order than a vacancy, so order
+# signals win ties. Also usable on their own: domain + order_signals is
+# enough to match even without an intent-list phrase.
+order_signals:
+  - "под ключ"
+  - "разовая задача"
+  - "разовый проект"
+  - "разовый заказ"
+  - "нужно сделать"
+  - "требуется разработать"
+  - "бюджет"
+  - "оплата за проект"
+  - "за проект"
+  - "по тз"
+  - "фикс"
+  - "сдельно"
+  - "напишите в лс"
+  - "пишите в личку"
+  - "в лс"
+  - "ищу исполнителя"
+  - "ищу фрилансера"
+  - "нужен фрилансер"
+  - "сделать сайт"
+  - "нужен лендинг"
+  - "нужен бот"
+  - "оценить стоимость"
+  - "сколько будет стоить"
+  - "прайс"
