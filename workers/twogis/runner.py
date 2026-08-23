@@ -5,6 +5,7 @@ sent, so a single run never drains the whole day's API quota on its own.
 
 import structlog
 
+from .config import City
 from .core_client import CoreClient, RawCompanyRequest
 from .dedup import DedupTracker
 from .mapper import map_item_to_lead
@@ -16,7 +17,7 @@ BATCH_SIZE = 50
 
 
 class TwoGisRunner:
-    def __init__(self, settings, cities: list[str], rubrics: list, client: TwoGisClient, core: CoreClient):
+    def __init__(self, settings, cities: list[City], rubrics: list, client: TwoGisClient, core: CoreClient):
         self._settings = settings
         self._cities = cities
         self._rubrics = rubrics
@@ -37,7 +38,7 @@ class TwoGisRunner:
                 if sent >= target:
                     break
 
-                async for item in self._client.iter_items(city, rubric.query):
+                async for item in self._client.iter_items(city.region_id, rubric.query):
                     twogis_id = str(item.get("id") or "")
                     if not twogis_id:
                         continue
@@ -46,7 +47,7 @@ class TwoGisRunner:
                         continue
                     self._dedup.mark(twogis_id)
 
-                    batch.append(map_item_to_lead(item, city=city, rubric_name=rubric.name))
+                    batch.append(map_item_to_lead(item, city=city.name, rubric_name=rubric.name))
                     sent += 1
 
                     if len(batch) >= BATCH_SIZE:
@@ -58,7 +59,8 @@ class TwoGisRunner:
 
                 log.info(
                     "twogis.combo_done",
-                    city=city,
+                    city=city.name,
+                    region_id=city.region_id,
                     rubric=rubric.name,
                     sent_so_far=sent,
                     seen_total=len(self._dedup),

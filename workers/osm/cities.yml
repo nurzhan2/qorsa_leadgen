@@ -1,0 +1,16 @@
+# Cities to search via Overpass, as bounding boxes: [south, west, north, east]
+# (latitude/longitude degrees) - this is what Overpass QL's bbox filter
+# takes directly, e.g. node["amenity"="cafe"](55.55,37.35,55.95,37.85);
+#
+# These are approximate rectangular boxes covering each city's built-up
+# area - not exact administrative borders, so they may include a bit of
+# the surrounding suburbs or clip a far-flung district. Good enough for
+# lead sourcing; refine with a tool like bboxfinder.com or
+# nominatim.openstreetmap.org if you need tighter bounds for a city.
+
+cities:
+  - name: "Москва"
+    bbox: [55.55, 37.35, 55.95, 37.85]
+  - name: "Санкт-Петербург"
+    bbox: [59.80, 30.10, 60.05, 30.55]
+

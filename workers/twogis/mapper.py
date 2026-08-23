@@ -11,7 +11,9 @@ from .core_client import RawCompanyRequest
 def _first_contact_value(item: dict, contact_type: str) -> str | None:
     """2GIS groups contacts as item.contact_groups[].contacts[], each a
     {"type": "phone"|"website"|..., "value": "..."}. Returns the first
-    match for the given type, or None."""
+    match for the given type, or None. contact_groups may be missing or
+    empty entirely - that's not an error, it just means no contact of that
+    type was found."""
     for group in item.get("contact_groups") or []:
         for contact in group.get("contacts") or []:
             if contact.get("type") == contact_type:
@@ -19,10 +21,6 @@ def _first_contact_value(item: dict, contact_type: str) -> str | None:
                 if value:
                     return value
     return None
-
-
-def _address(item: dict) -> str | None:
-    return item.get("address_name") or item.get("address_comment") or item.get("full_name")
 
 
 def _twogis_search_url(name: str, city: str) -> str:
@@ -35,7 +33,8 @@ def _twogis_search_url(name: str, city: str) -> str:
 
 def map_item_to_lead(item: dict, city: str, rubric_name: str) -> RawCompanyRequest:
     twogis_id = str(item.get("id") or "")
-    name = item.get("name") or "Без названия"
+    name = item.get("full_name") or item.get("name") or "Без названия"
+    address = item.get("address_name")
     phone = _first_contact_value(item, "phone")
     website = _first_contact_value(item, "website") or _first_contact_value(item, "link")
     has_site = bool(website)
@@ -44,10 +43,16 @@ def map_item_to_lead(item: dict, city: str, rubric_name: str) -> RawCompanyReque
         name=name,
         domain=website,
         phone=phone,
-        address=_address(item),
+        address=address,
+        # `city` is always the name from cities.yml, never anything out of
+        # the 2GIS response - the API result doesn't reliably echo it back.
         city=city,
         source="TWOGIS",
         source_url=_twogis_search_url(name, city),
         has_site=has_site,
-        raw={"rubric": rubric_name, "twogis_id": twogis_id},
+        raw={
+            "twogis_id": twogis_id,
+            "rubrics": item.get("rubrics") or [],
+            "rubric_query": rubric_name,
+        },
     )

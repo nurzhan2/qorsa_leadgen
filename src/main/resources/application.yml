@@ -34,6 +34,8 @@ leadgen:
     competitor-negative-review-weight: 30
     budget-mentioned-weight: 20
     contact-and-geo-weight: 10
+    mobile-phone-weight: 15
+    toll-free-only-penalty: 10
     fuzzy-name-threshold: 82
     hot-threshold: 70
     qualified-threshold: 40

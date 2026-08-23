@@ -25,6 +25,9 @@ class SheetsExporterTest {
     void labelsMatchExpectedTabNames() {
         assertThat(SheetsExporter.sourceLabel(LeadSource.TELEGRAM_ORDER)).isEqualTo("TG заявки");
         assertThat(SheetsExporter.sourceLabel(LeadSource.TWOGIS)).isEqualTo("2GIS");
+        assertThat(SheetsExporter.sourceLabel(LeadSource.OSM)).isEqualTo("OpenStreetMap");
+        assertThat(SheetsExporter.sourceLabel(LeadSource.ZAKUPKI)).isEqualTo("Госзакупки");
+        assertThat(SheetsExporter.sourceLabel(LeadSource.NEW_DOMAIN)).isEqualTo("Новые домены");
         assertThat(SheetsExporter.sourceLabel(LeadSource.GOOGLE_MAPS)).isEqualTo("Google Maps");
         assertThat(SheetsExporter.sourceLabel(LeadSource.YANDEX_REVIEW)).isEqualTo("Яндекс Отзывы");
         assertThat(SheetsExporter.sourceLabel(LeadSource.VACANCY)).isEqualTo("Вакансии");

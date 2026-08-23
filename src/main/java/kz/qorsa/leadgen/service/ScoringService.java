@@ -61,12 +61,33 @@ public class ScoringService {
             reasons.add("есть контакт+гео");
         }
 
+        // primary_phone_type is set by PhoneUtil during ingest (IngestService).
+        // Since PhoneUtil.pickPrimary() always prefers a mobile/city number over
+        // a toll-free one when any exists, primary_phone_type == TOLL_FREE
+        // already implies toll-free was the only kind of number on file.
+        String primaryPhoneType = rawStringValue(company, "primary_phone_type");
+        if ("MOBILE".equals(primaryPhoneType)) {
+            score += properties.getMobilePhoneWeight();
+            reasons.add("мобильный (прямой контакт)");
+        } else if ("TOLL_FREE".equals(primaryPhoneType)) {
+            score -= properties.getTollFreeOnlyPenalty();
+            reasons.add("8-800 (вероятно сеть/колл-центр)");
+        }
+
         // --- Future site-audit hooks (not evaluated yet, no raw data source exists) ---
         // pagespeed < properties.getPagespeedThreshold() -> + properties.getPagespeedWeight()
         // auditFails > properties.getAuditFailsThreshold() -> + properties.getAuditFailsWeight()
 
         String reason = String.join("; ", reasons);
         return new ScoreResult(score, reason);
+    }
+
+    private static String rawStringValue(Company company, String key) {
+        if (company.getRaw() == null) {
+            return null;
+        }
+        Object value = company.getRaw().get(key);
+        return value == null ? null : String.valueOf(value);
     }
 
     private static boolean isRawFlagTrue(Company company, String key) {

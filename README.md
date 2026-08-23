@@ -133,15 +133,15 @@ Field notes:
 |-------------|----------|-------|
 | `name`      | yes      | Only required field. |
 | `domain`    | no       | Bare, with `http(s)://`, `www.` or a full URL — all normalized the same way. |
-| `phone`     | no       | Any format; only digits are kept for dedup (last 10 kept). |
+| `phone`     | no       | Any format, and may list several numbers separated by `;`, `,`, `/`, or spaces - the core splits and normalizes them (`PhoneUtil`), stores the best one for a cold call as `Company.phone` (`+7XXXXXXXXXX`), and keeps the rest in `raw.all_phones`. Only digits are kept for dedup matching (last 10 kept). |
 | `email`     | no       | Also used to recover a domain if `domain` is absent. |
 | `messenger` | no       | e.g. a Telegram handle. |
 | `address`   | no       | Free text. |
 | `city`      | no       | Required for fuzzy-name dedup to run. |
-| `source`    | no       | One of `TELEGRAM_ORDER`, `GOOGLE_MAPS`, `TWOGIS`, `YANDEX_REVIEW`, `VACANCY`, `AVITO_JOB`, `DEMO`, `OTHER`. Defaults to `OTHER`. |
+| `source`    | no       | One of `TELEGRAM_ORDER`, `GOOGLE_MAPS`, `TWOGIS`, `OSM`, `ZAKUPKI`, `NEW_DOMAIN`, `YANDEX_REVIEW`, `VACANCY`, `AVITO_JOB`, `DEMO`, `OTHER`. Defaults to `OTHER`. |
 | `sourceUrl` | no       | Link back to the original listing/post/review. |
 | `hasSite`   | no       | Defaults to `true`. Set `false` when the worker confirms no website exists — this is a strong scoring signal. |
-| `raw`       | no       | Free-form map, stored as-is in `companies.raw` (jsonb). `budgetMentioned` and `competitorNegativeReview` booleans are read by the scorer today; anything else is just carried along for later use. |
+| `raw`       | no       | Free-form map, stored as-is in `companies.raw` (jsonb). `budgetMentioned` and `competitorNegativeReview` booleans are read by the scorer today; anything else is just carried along for later use. The core itself adds two more keys on ingest - `all_phones` and `primary_phone_type` - derived from `phone` by `PhoneUtil`; workers don't need to set these themselves. |
 
 Response (`IngestResponse`):
 
@@ -172,7 +172,7 @@ Both endpoints return an array of `LeadResponse`:
   "companyId": "…",
   "companyName": "Кофейня Ромашка",
   "domain": null,
-  "phone": "+7 701 111 22 33",
+  "phone": "+77011112233",
   "city": "Almaty",
   "source": "TELEGRAM_ORDER",
   "score": 70,
@@ -192,6 +192,17 @@ Both endpoints return an array of `LeadResponse`:
 | `raw.competitorNegativeReview == true`                  | +30    | "недоволен конкурентом" |
 | `raw.budgetMentioned == true`                           | +20    | "упомянут бюджет" |
 | `phone` and `city` both present                         | +10    | "есть контакт+гео" |
+| `raw.primary_phone_type == "MOBILE"`                    | +15    | "мобильный (прямой контакт)" |
+| `raw.primary_phone_type == "TOLL_FREE"`                 | −10    | "8-800 (вероятно сеть/колл-центр)" |
+
+`primary_phone_type` is set automatically during ingest by `PhoneUtil` (see
+`kz.qorsa.leadgen.service.PhoneUtil`/`PhoneType`) - it classifies the
+company's phone(s) as `MOBILE`, `CITY_MOSCOW`, `CITY_SPB`, `CITY_OTHER`, or
+`TOLL_FREE`, and `Company.phone` is set to the best one for a cold call
+(mobile beats any city number beats toll-free). City numbers (Moscow, SPb,
+or otherwise) aren't penalized - a landline is a normal, legitimate office
+business line. The full multi-number list (if a worker reports more than
+one) is kept in `raw.all_phones`.
 
 Lead status thresholds: `score >= 70` → `HOT`, `score >= 40` → `QUALIFIED`,
 otherwise `NEW`.
@@ -213,8 +224,9 @@ source of that data exists in this increment.
   (всё остальное), **📊 Все**, плюс отдельная вкладка на каждый источник
   (`TG заявки`, `2GIS`, `Google Maps`, ...) — создаётся автоматически, как
   только для источника появился хотя бы один лид.
-- Колонки: Дата | Компания | Ниша | Телефон | Email | Мессенджер | Город |
-  Источник | Score | Статус | Причина | Ссылка.
+- Колонки: Дата | Компания | Ниша | Телефон | Тип телефона | Email | Мессенджер |
+  Город | Источник | Score | Статус | Причина | Ссылка. "Тип телефона" —
+  Мобильный / Городской Мск / Городской / 8-800 (из `PhoneUtil`).
 - Оформление: жирная тёмная шапка с заморозкой первой строки, автоширина
   колонок, чередование строк, автофильтр, условная заливка по Score (≥70
   зелёный, 40–69 жёлтый, <40 серый) и по статусу (HOT — красный жирный,
@@ -281,11 +293,16 @@ Dedup and scoring apply automatically. If the new source needs a scoring
 signal that doesn't exist yet, that's a small, explicit change to
 `ScoringService`/`ScoringProperties` — not a change to how ingest works.
 
-Two workers already exist as reference: `workers/telegram_monitor/` (reads a
-Telegram channel's order-post stream) and `workers/twogis/` (pulls local
-businesses with no website out of the 2GIS Catalog API) — both are
-self-contained Python processes that only ever talk to this core over
-`POST /api/v1/companies/ingest`, exactly like the recipe above.
+Six workers already exist as reference, all self-contained Python
+processes that only ever talk to this core over
+`POST /api/v1/companies/ingest`, exactly like the recipe above:
+`workers/telegram_monitor/` (reads a Telegram channel's order-post
+stream), `workers/twogis/` (2GIS Catalog API), `workers/osm/`
+(OpenStreetMap via the free Overpass API), `workers/google_places/`
+(Google Places API (New) — requires billing), `workers/zakupki/` (parses
+zakupki.gov.ru's public procurement-notice search for hot, budget-backed
+leads), and `workers/newdomains/` (dormant scaffold for a paid
+newly-registered-domains feed — inert until a provider is configured).
 
 ## Package layout
 

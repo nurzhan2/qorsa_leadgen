@@ -78,13 +78,13 @@ import org.springframework.stereotype.Service;
 public class SheetsExporter {
 
     private static final String APPLICATION_NAME = "qorsa-leadgen";
-    private static final int COLUMN_COUNT = 12;
+    private static final int COLUMN_COUNT = 13;
     // Fixed upper bound for banding/conditional-format ranges so they never
     // need to be recreated as the data grows or shrinks between syncs.
     private static final int MAX_FORMAT_ROWS = 10_000;
 
     private static final List<Object> HEADER = List.of(
-            "Дата", "Компания", "Ниша", "Телефон", "Email", "Мессенджер", "Город",
+            "Дата", "Компания", "Ниша", "Телефон", "Тип телефона", "Email", "Мессенджер", "Город",
             "Источник", "Score", "Статус", "Причина", "Ссылка");
 
     private static final DateTimeFormatter DATE_FORMAT =
@@ -207,7 +207,7 @@ public class SheetsExporter {
         List<List<Object>> rows = buildRows(leads);
 
         sheetsService.spreadsheets().values()
-                .clear(spreadsheetId, quoted(title) + "!A1:L" + (MAX_FORMAT_ROWS + 1), new ClearValuesRequest())
+                .clear(spreadsheetId, quoted(title) + "!A1:M" + (MAX_FORMAT_ROWS + 1), new ClearValuesRequest())
                 .execute();
 
         sheetsService.spreadsheets().values()
@@ -259,18 +259,18 @@ public class SheetsExporter {
         return requests;
     }
 
-    // Score column (index 8, "I"): >=70 green, 40-69 yellow, <40 gray.
+    // Score column (index 9, "J"): >=70 green, 40-69 yellow, <40 gray.
     private List<Request> scoreConditionalFormatRules(int sheetId) {
-        GridRange range = columnRange(sheetId, 8, 9);
+        GridRange range = columnRange(sheetId, 9, 10);
         return List.of(
                 addConditionalFormat(range, "NUMBER_GREATER_THAN_EQ", List.of("70"), null, SCORE_GREEN),
                 addConditionalFormat(range, "NUMBER_BETWEEN", List.of("40", "69"), null, SCORE_YELLOW),
                 addConditionalFormat(range, "NUMBER_LESS", List.of("40"), null, SCORE_GRAY));
     }
 
-    // Status column (index 9, "J"): HOT red+bold, QUALIFIED orange, NEW gray.
+    // Status column (index 10, "K"): HOT red+bold, QUALIFIED orange, NEW gray.
     private List<Request> statusConditionalFormatRules(int sheetId) {
-        GridRange range = columnRange(sheetId, 9, 10);
+        GridRange range = columnRange(sheetId, 10, 11);
         return List.of(
                 addConditionalFormat(range, "TEXT_EQ", List.of("HOT"), STATUS_RED, null),
                 addConditionalFormat(range, "TEXT_EQ", List.of("QUALIFIED"), STATUS_ORANGE, null),
@@ -312,6 +312,7 @@ public class SheetsExporter {
                     nullToEmpty(company.getName()),
                     nullToEmpty(lead.getNiche()),
                     nullToEmpty(company.getPhone()),
+                    phoneTypeLabel(company),
                     nullToEmpty(company.getEmail()),
                     nullToEmpty(company.getMessenger()),
                     nullToEmpty(company.getCity()),
@@ -334,11 +335,34 @@ public class SheetsExporter {
             case TELEGRAM_ORDER -> "TG заявки";
             case GOOGLE_MAPS -> "Google Maps";
             case TWOGIS -> "2GIS";
+            case OSM -> "OpenStreetMap";
+            case ZAKUPKI -> "Госзакупки";
+            case NEW_DOMAIN -> "Новые домены";
             case YANDEX_REVIEW -> "Яндекс Отзывы";
             case VACANCY -> "Вакансии";
             case AVITO_JOB -> "Avito";
             case DEMO -> "Демо";
             case OTHER -> "Прочее";
+        };
+    }
+
+    /**
+     * Friendly Russian label for the "Тип телефона" column, from the
+     * {@code primary_phone_type} raw flag PhoneUtil sets during ingest
+     * (see IngestService). Blank when no phone was ever classified - most
+     * commonly because the company has no phone at all.
+     */
+    private static String phoneTypeLabel(Company company) {
+        Object rawType = company.getRaw() == null ? null : company.getRaw().get("primary_phone_type");
+        if (rawType == null) {
+            return "";
+        }
+        return switch (String.valueOf(rawType)) {
+            case "MOBILE" -> "Мобильный";
+            case "CITY_MOSCOW" -> "Городской Мск";
+            case "CITY_SPB", "CITY_OTHER" -> "Городской";
+            case "TOLL_FREE" -> "8-800";
+            default -> "";
         };
     }
 

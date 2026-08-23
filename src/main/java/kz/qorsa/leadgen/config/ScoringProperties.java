@@ -29,6 +29,12 @@ public class ScoringProperties {
     /** Points added when both phone and city are present. */
     private int contactAndGeoWeight = 10;
 
+    /** Points added when the primary phone is a mobile number - a direct line to the owner/decision-maker. */
+    private int mobilePhoneWeight = 15;
+
+    /** Points SUBTRACTED when the only phone(s) on file are toll-free (8-800) - usually a call center/network line. */
+    private int tollFreeOnlyPenalty = 10;
+
     /** Fuzzy-name dedup threshold (tokenSortRatio, 0-100). */
     private int fuzzyNameThreshold = 82;
 

@@ -45,13 +45,25 @@ class Settings(BaseSettings):
     rubrics_file: Path = MODULE_DIR / "rubrics.yml"
 
 
+class City(BaseModel):
+    """One searchable city. `region_id` is 2GIS's numeric region id -
+    required because GET /3.0/items?q=<text>&region_id=<id> returns real
+    results, while folding the city name into the free-text query (e.g.
+    q="кафе Казань") reliably returns 0. See README.md for how to look up
+    or re-verify a region_id."""
+
+    name: str
+    region_id: int
+
+
 class CitiesConfig(BaseModel):
-    cities: list[str] = Field(default_factory=list)
+    cities: list[City] = Field(default_factory=list)
 
 
 class Rubric(BaseModel):
-    """One business category to search for. `query` is the free-text term
-    combined with a city name to search 2GIS (e.g. "кафе Казань")."""
+    """One business category to search for. `query` is the free-text
+    search term sent as-is (combined with a city's region_id, not its
+    name - see City)."""
 
     name: str
     query: str

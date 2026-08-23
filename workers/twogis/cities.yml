@@ -1,22 +1,33 @@
-# Cities to search in 2GIS, one search pass per (city × rubric) pair.
-# Add/remove freely - no code changes needed. City names are used as
-# free-text search terms combined with each rubric's query (e.g.
-# "кафе Новосибирск"), so use the name as people/2GIS would recognize it.
+# Cities to search in 2GIS, one search pass per (city x rubric) pair.
+#
+# Uses 2GIS's numeric region_id rather than a free-text city name in the
+# search query: GET /3.0/items?q=<rubric>&region_id=<id> returns real
+# results, while q="<rubric> <city name>" (city folded into the text query)
+# reliably returns 0 results. See README.md "Проверка region_id" for how
+# this was diagnosed and how to verify/add more cities.
+#
+# Every id below was independently verified against the live API on
+# 2026-08-23 via https://catalog.api.2gis.com/2.0/region/search (confirms
+# the id belongs to that city) AND https://catalog.api.2gis.com/3.0/items
+# (confirms region_id=<id> actually returns real, non-empty results - each
+# had total > 300 for a plain "кафе" search). Re-verify before trusting
+# blindly if 2GIS ever renumbers regions - see README.md for the exact
+# commands used.
 
 cities:
-  - "Москва"
-  - "Санкт-Петербург"
-  - "Новосибирск"
-  - "Екатеринбург"
-  - "Казань"
-  - "Нижний Новгород"
-  - "Челябинск"
-  - "Красноярск"
-  - "Самара"
-  - "Уфа"
-  - "Ростов-на-Дону"
-  - "Омск"
-  - "Краснодар"
-  - "Воронеж"
-  - "Пермь"
-  - "Волгоград"
+  - {name: "Москва", region_id: 32}
+  - {name: "Санкт-Петербург", region_id: 38}
+  - {name: "Новосибирск", region_id: 1}
+  - {name: "Екатеринбург", region_id: 9}
+  - {name: "Казань", region_id: 21}
+  - {name: "Нижний Новгород", region_id: 19}
+  - {name: "Челябинск", region_id: 15}
+  - {name: "Красноярск", region_id: 7}
+  - {name: "Самара", region_id: 18}
+  - {name: "Уфа", region_id: 17}
+  - {name: "Ростов-на-Дону", region_id: 24}
+  - {name: "Омск", region_id: 2}
+  - {name: "Краснодар", region_id: 23}
+  - {name: "Воронеж", region_id: 31}
+  - {name: "Пермь", region_id: 16}
+  - {name: "Волгоград", region_id: 33}

@@ -27,6 +27,8 @@ class ScoringServiceTest {
         properties.setCompetitorNegativeReviewWeight(30);
         properties.setBudgetMentionedWeight(20);
         properties.setContactAndGeoWeight(10);
+        properties.setMobilePhoneWeight(15);
+        properties.setTollFreeOnlyPenalty(10);
         properties.setHotThreshold(70);
         properties.setQualifiedThreshold(40);
         scoringService = new ScoringService(properties);
@@ -98,6 +100,54 @@ class ScoringServiceTest {
         assertThat(scoringService.score(withBoth).reason()).isEqualTo("есть контакт+гео");
         assertThat(scoringService.score(onlyPhone).score()).isZero();
         assertThat(scoringService.score(onlyCity).score()).isZero();
+    }
+
+    @Test
+    void mobilePrimaryPhoneTypeAddsWeightAndReason() {
+        Company company = baseCompany()
+                .hasSite(true)
+                .raw(Map.of("primary_phone_type", "MOBILE"))
+                .build();
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(15);
+        assertThat(result.reason()).isEqualTo("мобильный (прямой контакт)");
+    }
+
+    @Test
+    void tollFreePrimaryPhoneTypeSubtractsWeightAndAddsReason() {
+        Company company = baseCompany()
+                .hasSite(true)
+                .raw(Map.of("primary_phone_type", "TOLL_FREE"))
+                .build();
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(-10);
+        assertThat(result.reason()).isEqualTo("8-800 (вероятно сеть/колл-центр)");
+    }
+
+    @Test
+    void cityPrimaryPhoneTypeIsNotPenalizedOrRewarded() {
+        Company moscow = baseCompany().hasSite(true).raw(Map.of("primary_phone_type", "CITY_MOSCOW")).build();
+        Company spb = baseCompany().hasSite(true).raw(Map.of("primary_phone_type", "CITY_SPB")).build();
+        Company other = baseCompany().hasSite(true).raw(Map.of("primary_phone_type", "CITY_OTHER")).build();
+
+        assertThat(scoringService.score(moscow).score()).isZero();
+        assertThat(scoringService.score(spb).score()).isZero();
+        assertThat(scoringService.score(other).score()).isZero();
+        assertThat(scoringService.score(moscow).reason()).isEmpty();
+    }
+
+    @Test
+    void missingPrimaryPhoneTypeAddsNoPhoneTypeRuleWeight() {
+        Company company = baseCompany().hasSite(true).build();
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isZero();
+        assertThat(result.reason()).isEmpty();
     }
 
     @Test

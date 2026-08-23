@@ -1,0 +1,36 @@
+# Business categories to search for via Google Places Text Search.
+# `query` is combined with each city name into a free-text search (e.g.
+# "стоматология Казань"). Add/remove freely - no code changes needed.
+#
+# Picked for being small local businesses that commonly have no website -
+# exactly the "нет сайта" signal the core scores highly.
+
+categories:
+  - name: "Кафе"
+    query: "кафе"
+  - name: "Рестораны"
+    query: "ресторан"
+  - name: "Стоматологии"
+    query: "стоматология"
+  - name: "Автосервисы"
+    query: "автосервис"
+  - name: "Салоны красоты"
+    query: "салон красоты"
+  - name: "Парикмахерские"
+    query: "парикмахерская"
+  - name: "Фитнес-клубы"
+    query: "фитнес клуб"
+  - name: "Магазины одежды"
+    query: "магазин одежды"
+  - name: "Юридические услуги"
+    query: "юридические услуги"
+  - name: "Строительные компании"
+    query: "строительная компания"
+  - name: "Медицинские клиники"
+    query: "медицинская клиника"
+  - name: "Ветеринарные клиники"
+    query: "ветеринарная клиника"
+  - name: "Барбершопы"
+    query: "барбершоп"
+  - name: "Турагентства"
+    query: "турагентство"

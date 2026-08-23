@@ -2,6 +2,7 @@ package kz.qorsa.leadgen.service;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import kz.qorsa.leadgen.config.ScoringProperties;
 import kz.qorsa.leadgen.domain.Company;
@@ -85,10 +86,23 @@ public class IngestService {
     }
 
     private Company toCandidate(RawCompanyRequest raw) {
+        // Split/classify BEFORE building the entity: Company.phone becomes the
+        // best single number for a cold call (PhoneUtil.pickPrimary), not
+        // necessarily whatever the worker sent verbatim - a worker may report
+        // several numbers separated by ";"/","/"/" in one string.
+        List<String> allPhones = PhoneUtil.normalizePhones(raw.getPhone());
+        String primaryPhone = PhoneUtil.pickPrimary(allPhones);
+
+        Map<String, Object> rawMap = raw.getRaw() != null ? new HashMap<>(raw.getRaw()) : new HashMap<>();
+        if (!allPhones.isEmpty()) {
+            rawMap.put("all_phones", allPhones);
+            rawMap.put("primary_phone_type", PhoneUtil.classify(primaryPhone).name());
+        }
+
         Company company = Company.builder()
                 .name(raw.getName())
                 .domain(raw.getDomain())
-                .phone(raw.getPhone())
+                .phone(primaryPhone)
                 .email(raw.getEmail())
                 .messenger(raw.getMessenger())
                 .address(raw.getAddress())
@@ -96,7 +110,7 @@ public class IngestService {
                 .source(raw.getSource())
                 .sourceUrl(raw.getSourceUrl())
                 .hasSite(raw.isHasSite())
-                .raw(raw.getRaw() != null ? new HashMap<>(raw.getRaw()) : new HashMap<>())
+                .raw(rawMap)
                 .build();
 
         String domainSource = firstNonBlank(company.getDomain(), company.getEmail());

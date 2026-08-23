@@ -1,0 +1,14 @@
+# Cities to search via Google Places Text Search. Plain names - combined
+# as free text with each category's query (e.g. "кафе" + "Казань" ->
+# "кафе Казань"), so Places' own geocoding resolves the city. Add/remove
+# freely - no code changes needed.
+
+cities:
+  - name: "Москва"
+  - name: "Санкт-Петербург"
+  - name: "Новосибирск"
+  - name: "Екатеринбург"
+  - name: "Казань"
+  - name: "Нижний Новгород"
+  - name: "Краснодар"
+  - name: "Ростов-на-Дону"

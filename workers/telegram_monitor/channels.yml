@@ -1,16 +1,133 @@
-# Channels/chats to monitor. The account running this worker must already
-# be a member of each one - Telethon can only listen to chats it has joined
-# manually beforehand (this worker never joins anything on its own).
-#
-# Each entry needs either `username` (public @handle, with or without the
-# @) or `id` (numeric chat id, for private chats with no public username -
-# you can get this from Telethon once, e.g. via `client.get_dialogs()`).
-#
-# The two entries below are PLACEHOLDERS - replace them with real
-# order-channel usernames/ids before running the monitor for real. See
-# README.md for where to find such channels.
+# channels.yml — ~97 каналов/чатов для мониторинга order-заявок
+# Источники: kadrof.ru, vc.ru, partnerkin, huntflow (IT/design), sostav, tgstat (авг 2026).
+# priority: 1 = ядро (веб/боты/приложения/dev, прямые заказы)  -> джойнить первыми
+#           2 = digital/general — веб/бот-заявки регулярно
+#           3 = смежное (дизайн/smm/копирайт) — веб/бот реже, но matcher выцепит
+# ВАЖНО:
+#  - Часть каналов = вакансии/наём, а не чистые "заказы". intent-фильтр в matcher.py
+#    отсеет мусор на входе, так что шум не страшен.
+#  - Перед боевым запуском ПРОГОНИ список: Telethon скажет, куда не смог вступить
+#    (переименованные/удалённые) — просто выкинешь мёртвые.
+#  - НЕ вступай во все 97 сразу с нового аккаунта -> FloodWait/бан.
+#    Джойни порциями по 15-20/день, начни с priority 1.
 
 channels:
-  - username: "example_order_channel_placeholder"
-  - username: "another_example_channel_placeholder"
-  # - id: -1001234567890   # example of a private-chat entry by numeric id
+
+  # ================= PRIORITY 1 — DEV / WEB / BOTS / APPS =================
+  # Веб-разработка, backend, JS/Python (сайты, боты, приложения, интеграции)
+  - {username: fordev,          title: "Вакансии Backend/Frontend (веб)",   priority: 1, category: dev_web}
+  - {username: jsdevjob,        title: "Javascript jobs (React/Vue/Angular)", priority: 1, category: dev_web}
+  - {username: pydevjob,        title: "Python jobs (Django/Flask)",        priority: 1, category: dev_backend}
+  - {username: ru_pythonjobs,   title: "Python jobs",                       priority: 1, category: dev_backend}
+  - {username: jvmjobs,         title: "pro.JVM Jobs (Java)",               priority: 1, category: dev_backend}
+  - {username: mobile_jobs,     title: "Mobile Dev Jobs (iOS/Android)",     priority: 1, category: dev_mobile}
+  - {username: it_vac,          title: "IT Jobs | вакансии, фриланс",       priority: 1, category: it_orders}
+  - {username: Remoteit,        title: "Remote IT (проекты на удаленке)",   priority: 1, category: it_orders}
+  - {username: geekjobs,        title: "Job in IT&Digital (GeekJob)",       priority: 1, category: it_orders}
+  - {username: jc_it,           title: "Jobs Code: IT-вакансии",            priority: 1, category: it_orders}
+  - {username: myjobit,         title: "Telegram IT Job",                   priority: 1, category: it_orders}
+  - {username: jobs_it,         title: "Jobs_IT (RU/EN)",                   priority: 1, category: it_orders}
+  - {username: Getitrussia,     title: "GetIT Russia",                      priority: 1, category: it_orders}
+  - {username: jobGeeks,        title: "Топ IT Вакансии (Dev/DevOps/QA)",   priority: 1, category: it_orders}
+
+  # ================= PRIORITY 1 — ПРЯМЫЕ ЗАКАЗЫ / ФРИЛАНС-ПРОЕКТЫ =========
+  - {username: freelansim_ru,   title: "Хабр Фриланс (заказы с бюджетом)",  priority: 1, category: dev_orders}
+  - {username: webfrl,          title: "Web Freelance",                     priority: 1, category: dev_web}
+  - {username: digitaltender,   title: "DIGITAL Tender (разовые задачи)",   priority: 1, category: digital_orders}
+  - {username: kadrof_work,     title: "Вакансии для фрилансеров (Kadrof)", priority: 1, category: general_orders}
+  - {username: ipomogator,      title: "ПОМОГАТОР — биржа фриланса",        priority: 1, category: general_orders}
+  - {username: THE_POMOGATOR,   title: "ПОМОГАТОР | фриланс | удаленка",    priority: 1, category: general_orders}
+  - {username: theyseeku,       title: "Finder.work / Охотник за головами", priority: 1, category: it_orders}
+  - {username: naudalenkebro,   title: "На удалёнке 2.0",                   priority: 1, category: general_orders}
+  - {username: workasap,        title: "Workasap (digital/media)",          priority: 1, category: digital_orders}
+  - {username: freelancetaverna, title: "Фриланс Таверна",                  priority: 1, category: general_orders}
+
+  # ================= PRIORITY 1 — КАЗАХСТАН ==============================
+  - {username: kazjob,          title: "Фриланс.кз | Удаленная работа",     priority: 1, category: kz_orders}
+  - {username: workitkz,        title: "IT Вакансии Казахстан",             priority: 1, category: kz_it}
+  - {username: jobkz_1,         title: "JobKZ: работа в Казахстане",        priority: 2, category: kz_general}
+
+  # ================= PRIORITY 2 — DIGITAL / GENERAL =====================
+  - {username: Relocats,        title: "IT Relocation (Inflow)",            priority: 2, category: it_orders}
+  - {username: jobforjunior,    title: "Job for Junior",                    priority: 2, category: it_orders}
+  - {username: jobfortm,        title: "Job for IT-TOP (CTO/Tech leads)",   priority: 3, category: it_orders}
+  - {username: tprogers,        title: "Типичные айтишники (чат)",          priority: 3, category: it_orders}
+  - {username: vdhl_good,       title: "VDHL.RU (media/design/it)",         priority: 2, category: digital_orders}
+  - {username: digital_hr,      title: "DigitalHR",                         priority: 2, category: digital_orders}
+  - {username: over100,         title: "over100 (IT >100k)",                priority: 2, category: it_orders}
+  - {username: workathomerus,   title: "WorkAtHome",                        priority: 2, category: general_orders}
+  - {username: vacanciesrus,    title: "Вакансии digital",                  priority: 2, category: digital_orders}
+  - {username: zapwork,         title: "Удалёнщики",                        priority: 2, category: general_orders}
+  - {username: distantsiya,     title: "Distantsiya",                       priority: 2, category: general_orders}
+  - {username: distantsiya2,    title: "ВАКАНСИИ фрилансеру",               priority: 2, category: general_orders}
+  - {username: Well_paid_Job,   title: "Вакансии з/п выше 50к",             priority: 2, category: general_orders}
+  - {username: workzavr,        title: "Воркзавр | Фриланс и Удаленка",     priority: 2, category: general_orders}
+  - {username: workk_on,        title: "WORK ON (проектная работа)",        priority: 2, category: general_orders}
+  - {username: chooseajob,      title: "Выбери Работу",                     priority: 2, category: general_orders}
+  - {username: remote_ru,       title: "Премиум удаленка (JobTG)",          priority: 2, category: general_orders}
+  - {username: tolokaSeek,      title: "ТОЛОКА #ищу",                       priority: 2, category: general_orders}
+  - {username: bina_Znaet,      title: "РАБОТАЕМ (одиночные заказы)",       priority: 2, category: general_orders}
+  - {username: frilancekomfort, title: "Работа в комфорте",                 priority: 3, category: general_orders}
+  - {username: profiwork,       title: "Вакансии инфобизнес/фриланс",       priority: 3, category: general_orders}
+  - {username: perezvonyu,      title: "Мы вам перезвоним",                 priority: 3, category: general_orders}
+  - {username: partnerkin_job,  title: "Вакансии [Партнеркин]",             priority: 3, category: general_orders}
+  - {username: HRity,           title: "HRity (реклама/IT, крупные)",       priority: 2, category: it_orders}
+  - {username: hireproproduct,  title: "Hire ProProduct (product)",         priority: 2, category: niche_orders}
+  - {username: edujobs,         title: "edujobs (онлайн-образование)",      priority: 3, category: niche_orders}
+  - {username: edmarketclubjob, title: "EdMarket Club (e-learning)",        priority: 3, category: niche_orders}
+  - {username: stage_1st,       title: "Первая ступень (джуны)",            priority: 3, category: general_orders}
+  - {username: noexperience,    title: "Удалёнка без опыта",                priority: 3, category: general_orders}
+  - {username: novobranez,      title: "НОВОБРАНЕЦ: фриланс без опыта",     priority: 3, category: general_orders}
+
+  # ================= PRIORITY 2-3 — ДИЗАЙН (граф.дизайн — твоё вторичное) ==
+  - {username: designer_ru,       title: "Ищу_дизайнера",                   priority: 2, category: design_orders}
+  - {username: designer_ru_work,  title: "Designer.ru: клиенты каждый день", priority: 2, category: design_orders}
+  - {username: designer_jobs,     title: "Вакансии и заказы на дизайн",     priority: 2, category: design_orders}
+  - {username: worklis,           title: "Worklis (дизайн/контент)",        priority: 2, category: design_orders}
+  - {username: cgfreelance,       title: "CG Freelance",                    priority: 2, category: design_orders}
+  - {username: fordesigner,       title: "Job for Designers (Geekjob)",     priority: 3, category: design_orders}
+  - {username: design_careers,    title: "DESIGN Careers",                  priority: 3, category: design_orders}
+  - {username: designwork_vacansii, title: "Вакансии для дизайнера",        priority: 3, category: design_orders}
+  - {username: jobs_designglory,  title: "Design Jobs (ux-news)",           priority: 3, category: design_orders}
+  - {username: jun_hi_vacancies,  title: "Вакансии для дизайнеров (8/день)", priority: 3, category: design_orders}
+  - {username: workindesign,      title: "Work for Designers",              priority: 3, category: design_orders}
+  - {username: design_vacancy,    title: "Вакансии для дизайнеров",         priority: 3, category: design_orders}
+  - {username: Visionisland,      title: "Vision Island",                   priority: 3, category: design_orders}
+  - {username: motionhunter,      title: "Motion designer hunter",          priority: 3, category: design_orders}
+  - {username: designhunters,     title: "Design Hunters",                  priority: 3, category: design_orders}
+  - {username: InclusiveVacancy,  title: "Вакансии в инклюзии",             priority: 3, category: design_orders}
+  - {username: workinart,         title: "Workinart",                       priority: 3, category: design_orders}
+  - {username: jobpower,          title: "Jobpower (креатив)",              priority: 3, category: design_orders}
+  - {username: rueventjob,        title: "Удаленка — творческая работа",    priority: 3, category: design_orders}
+
+  # ================= PRIORITY 3 — SMM / МАРКЕТИНГ / КОПИРАЙТ =============
+  - {username: smm_leads,       title: "SMM Leads",                         priority: 3, category: smm_orders}
+  - {username: marketing_jobs,  title: "Marketing jobs",                    priority: 3, category: marketing_orders}
+  - {username: reklamodromo,    title: "Реклама/таргет подработка",         priority: 3, category: marketing_orders}
+  - {username: seohr,           title: "SEO HR",                            priority: 3, category: marketing_orders}
+  - {username: surovowork,      title: "Суровый питерский SMM (work)",      priority: 3, category: smm_orders}
+  - {username: TargetContext,   title: "TargetContext",                     priority: 3, category: smm_orders}
+  - {username: vacancysmm,      title: "vacancysmm",                        priority: 3, category: smm_orders}
+  - {username: ttargetjob,      title: "ttargetjob (таргет)",               priority: 3, category: smm_orders}
+  - {username: smmlancer,       title: "smmlancer",                         priority: 3, category: smm_orders}
+  - {username: dnative_job,     title: "Вакансии SMM и Digital",            priority: 3, category: smm_orders}
+  - {username: glvrd_job,       title: "Glvrd job (редактура)",             priority: 3, category: copy_orders}
+  - {username: normrabota,      title: "Норм работа",                       priority: 3, category: copy_orders}
+  - {username: work_editor,     title: "work_editor",                       priority: 3, category: copy_orders}
+  - {username: mediajobs_ru,    title: "Mediajobs",                         priority: 3, category: media_orders}
+  - {username: Work4writers,    title: "Work for writers",                  priority: 3, category: copy_orders}
+  - {username: textodromo,      title: "Текстодром",                        priority: 3, category: copy_orders}
+  - {username: dddwork,         title: "Работа в медиа",                    priority: 3, category: media_orders}
+  - {username: textmoney,       title: "Работа для копирайтеров",           priority: 3, category: copy_orders}
+  - {username: OnlyDGTL,        title: "OnlyDGTL",                          priority: 3, category: digital_orders}
+  - {username: marketplacejob,  title: "Работа на маркетплейсах",           priority: 3, category: niche_orders}
+  - {username: theblueprintcareer, title: "Карьера The Blueprint",          priority: 3, category: niche_orders}
+  - {username: promopoisk,      title: "Интересная работа в Москве",        priority: 3, category: general_orders}
+
+# ================= Только по инвайт-ссылке (ручная заявка) ==============
+# Нет чистого @username -> не для авто-джойна, но глянь руками:
+#   Workzavr(alt)   — t.me/+focfZNw0vucyODcy
+#   Design Hunters  — t.me/+yGmL3wuAarY1OGZi (модерация входа)
+#   Founder job     — t.me/joinchat/Tk5auYqN1MjjG3Mz
+#   SEO HR (alt)    — t.me/+fD0O8M65mVgxNjE6
+#   Digital 100k    — t.me/+5pSqok-B6RkxZjky

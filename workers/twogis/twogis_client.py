@@ -2,9 +2,15 @@
 endpoint). Retries 429/5xx with exponential backoff via tenacity; a
 semaphore plus a fixed per-request pause keep this worker gentle on
 2GIS's rate-limited free tier.
+
+Search is scoped by region_id (2GIS's numeric city id), NOT by folding the
+city name into the free-text query: q="<rubric> <city name>" reliably
+returns 0 results, while q="<rubric>"&region_id=<id> returns real data.
+Confirmed manually against the live API - see cities.yml and README.md.
 """
 
 import asyncio
+import math
 
 import httpx
 import structlog
@@ -13,7 +19,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 log = structlog.get_logger(__name__)
 
 BASE_URL = "https://catalog.api.2gis.com/3.0/items"
-RESPONSE_FIELDS = "items.contact_groups,items.address_name,items.full_name,items.rubrics"
+RESPONSE_FIELDS = "items.contact_groups,items.address_name,items.full_name,items.point,items.rubrics"
 
 
 class TwoGisRateLimitError(Exception):
@@ -62,12 +68,13 @@ class TwoGisClient:
         stop=stop_after_attempt(5),
         reraise=True,
     )
-    async def _fetch_page(self, query: str, page: int) -> dict:
+    async def _fetch_page(self, rubric_query: str, region_id: int, page: int) -> dict:
         async with self._semaphore:
             response = await self._client.get(
                 BASE_URL,
                 params={
-                    "q": query,
+                    "q": rubric_query,
+                    "region_id": region_id,
                     "page": page,
                     "page_size": self._page_size,
                     "fields": RESPONSE_FIELDS,
@@ -77,39 +84,47 @@ class TwoGisClient:
         await asyncio.sleep(self._delay)
 
         if response.status_code == 429:
-            log.warning("twogis.rate_limited", query=query, page=page)
-            raise TwoGisRateLimitError(f"429 for {query!r} page {page}")
+            log.warning("twogis.rate_limited", query=rubric_query, region_id=region_id, page=page)
+            raise TwoGisRateLimitError(f"429 for {rubric_query!r} region_id={region_id} page {page}")
         if response.status_code >= 500:
-            log.warning("twogis.server_error", query=query, page=page, status=response.status_code)
-            raise TwoGisServerError(f"{response.status_code} for {query!r} page {page}")
+            log.warning(
+                "twogis.server_error", query=rubric_query, region_id=region_id, page=page,
+                status=response.status_code,
+            )
+            raise TwoGisServerError(f"{response.status_code} for {rubric_query!r} region_id={region_id} page {page}")
         if response.status_code >= 400:
             log.error(
                 "twogis.client_error",
-                query=query,
+                query=rubric_query,
+                region_id=region_id,
                 page=page,
                 status=response.status_code,
                 body=response.text[:300],
             )
-            raise TwoGisClientError(f"{response.status_code} for {query!r} page {page}: {response.text[:200]}")
+            raise TwoGisClientError(
+                f"{response.status_code} for {rubric_query!r} region_id={region_id} page {page}: "
+                f"{response.text[:200]}"
+            )
 
         return response.json()
 
-    async def iter_items(self, city: str, rubric_query: str):
-        """Yields items across pages for one (city, rubric) combo, up to
-        max_pages_per_combo, stopping early once a short page signals
-        there's nothing more to fetch."""
-        query = f"{rubric_query} {city}"
+    async def iter_items(self, region_id: int, rubric_query: str):
+        """Yields items across pages for one (region_id, rubric) combo, up
+        to max_pages_per_combo. Stops early once either a short page or
+        the response's own `total` says there's nothing more to fetch."""
         for page in range(1, self._max_pages + 1):
             try:
-                payload = await self._fetch_page(query, page)
+                payload = await self._fetch_page(rubric_query, region_id, page)
             except TwoGisClientError:
-                log.error("twogis.giving_up_on_combo", query=query, page=page)
+                log.error("twogis.giving_up_on_combo", query=rubric_query, region_id=region_id, page=page)
                 return
 
-            items, _total = parse_items(payload)
+            items, total = parse_items(payload)
             if not items:
                 return
             for item in items:
                 yield item
-            if len(items) < self._page_size:
+
+            total_pages = math.ceil(total / self._page_size) if total else page
+            if len(items) < self._page_size or page >= total_pages:
                 return

@@ -1,0 +1,10 @@
+# Search keywords run against zakupki.gov.ru's public search, one search
+# pass per keyword. Add/remove freely - no code changes needed.
+
+keywords:
+  - "разработка сайта"
+  - "создание сайта"
+  - "разработка программного обеспечения"
+  - "внедрение программного обеспечения"
+  - "автоматизация бизнес-процессов"
+  - "разработка чат-бота"
