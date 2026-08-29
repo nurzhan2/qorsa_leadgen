@@ -10,7 +10,7 @@ means the tag was actually absent, not an artifact of an API plan
 withholding data (unlike some other sources - see `workers/twogis/README.md`
 for a contrasting example where that *is* a real caveat).
 
-**Охват:** 30 крупнейших городов РФ × 36 категорий малого бизнеса = 1080 пар,
+**Охват:** 30 крупнейших городов РФ × 63 категории малого бизнеса = 1890 пар,
 обходимых постепенно, по 50 за запуск - см. "Режим постепенного обхода".
 
 Fully self-contained - its own `requirements.txt`, its own `.env`, its own
@@ -61,7 +61,7 @@ pip install -r requirements.txt
 
 ### 3. Охват: `cities.yml` / `categories.yml`
 
-Ships with **30 cities × 36 categories = 1080 (city, category) pairs**.
+Ships with **30 cities × 63 categories = 1890 (city, category) pairs**.
 
 **`cities.yml`** - Russia's 30 largest cities as bounding boxes,
 `{name, bbox: [south, west, north, east]}`: every million-plus city plus
@@ -85,9 +85,29 @@ then silently return nothing for that city forever.
 cafes and the Vladivostok box 349 - the second being the one that proves the
 eastern cities aren't swapped.
 
-**`categories.yml`** - OSM tags, each `{name, key, value}`. 36 small-business
-categories that plausibly lack a website: food, medical, beauty, auto,
-education, business services, home/repair, retail.
+**`categories.yml`** - OSM tags, each `{name, key, value}`. **63**
+small-business categories that plausibly lack a website, in these groups:
+
+| группа | категорий | примеры |
+|---|---|---|
+| Еда и напитки | 4 | кафе, рестораны, пекарни, кондитерские |
+| Медицина и здоровье | 6 | стоматологии, клиники, аптеки, оптики, массаж |
+| Красота | 3 | салоны красоты, парикмахерские, тату |
+| Авто | 5 | автосервисы, автомойки, шиномонтаж, автошколы |
+| Образование и дети | 3 | детсады, языковые школы, учебные центры |
+| Услуги для бизнеса | 5 | юристы, нотариусы, бухгалтерия, логистика, типографии |
+| Дом и ремонт | 4 | мебель, окна, двери, отделка интерьеров |
+| **Мебель на заказ и интерьер** | **7** | кухни, спальни, шторы, ковры, свет, товары для дома |
+| **Отделочные материалы** | **7** | плитка, краски, полы, электрика, DIY, хозтовары |
+| **Дизайн и строительство** | **6** | архитектурные бюро, проектировщики, стройкомпании |
+| **Недвижимость** | **1** | агентства недвижимости |
+| **Ландшафт и сад** | **1** | садовые центры |
+| **Объекты-заказчики интерьера** | **5** | отели, гостевые дома, апартаменты, коворкинги |
+| Розница и быт | 6 | цветы, зоомагазины, химчистки, одежда, фитнес, турагентства |
+
+Bold groups were added for the interior-design / landscape / construction
+push - they cover both the *suppliers* (кухни, плитка, свет) and the
+*customers* who need an interior designed (отели, коворкинги, апартаменты).
 
 **Every tag was verified, not guessed** - twice:
 
@@ -103,24 +123,52 @@ the same way first: an unused tag still costs one Overpass request per city
 
 #### Чего в списке нет и почему (честно)
 
-Four commonly-requested categories have **no usable OSM tag in Russia**.
-Verified live - the count inside the Moscow bbox is literally zero:
+Every tag below is **real and documented** - it was rejected on the live
+Moscow count, not on plausibility. The number that decides is **named**
+objects: `mapper.py` drops elements without a `name`, so an unnamed object
+never becomes a lead.
 
-| категория | ближайший тег | в Москве |
+**Услуги, которых в российском OSM просто нет:**
+
+| категория | ближайший тег | именованных в Москве |
 |---|---|---|
 | клининг | `craft=cleaning` | **0** |
 | свадебные агентства | `office=wedding_planner` | **0** |
 | event-агентства | `office=event_management` | **0** |
-| ремонт квартир | `craft=builder` | **0** (`craft=carpenter`: 8) |
+| **дизайн интерьера** | `office=interior_design` | **0** |
+| геодезия | `office=surveyor` | 5 |
+| ландшафтные садовники | `craft=gardener` | 3 |
+| сельхозтовары | `shop=agrarian` | 7 |
+| садовая мебель | `shop=garden_furniture` | **0** |
+| теплицы | `landuse=greenhouse_horticulture` | 6 из 35 (это сельхоз-полигоны, не бизнес) |
+| переезды | `office=moving_company` | 2 (покрыто `office=logistics`) |
 
-They're deliberately **not** in `categories.yml`. Adding them would burn 30
-Overpass requests each per full cycle and return nothing - the opposite of
-what the rate-limit work below is for. If you specifically need these
-business types, OSM is the wrong source; 2GIS or Яндекс.Справочник have them.
+`office=interior_design` returning **zero** is the notable one: the single
+most on-topic tag for this whole request is unused in Russia. Архитектурные
+бюро (`office=architect`, 43) are the working substitute, and they're in.
 
-Two more tags that *sound* right but aren't real: `shop=windows` (254 uses
+**Бригады отделочников - отдельный случай.** All of them are near-empty:
+
+```
+craft=painter     0     craft=roofer      0     craft=joiner   0
+craft=electrician 1     craft=plumber     2     craft=tiler    4
+craft=carpenter   5     craft=builder     0
+```
+
+That's expected rather than surprising - частные мастера и мелкие бригады
+себя на карту не наносят. As a lead segment they're attractive; OSM simply
+doesn't know about them. Look in Avito / Профи.ру instead.
+
+Each rejected category would cost **30 Overpass requests per full cycle** and
+return nothing - exactly what the rate-limit work below exists to avoid.
+
+Two tags that *sound* right but aren't real: `shop=windows` (254 uses
 worldwide, no wiki page - use `craft=window_construction`) and
 `shop=moving_company` (1 use - use `office=logistics`).
+
+**Уже присутствовали, повторно не добавлялись:** `shop=furniture`,
+`shop=florist`, `shop=interior_decoration`, `craft=window_construction`,
+`amenity=restaurant`, `amenity=clinic`.
 
 The previous generic `shop=*` catch-all was also removed: at 30 cities it was
 the single heaviest query in the set and fully redundant with the 20+
@@ -175,28 +223,28 @@ A run stops at whichever limit comes first:
 
 ## Режим постепенного обхода
 
-30 cities × 36 categories = **1080 Overpass queries** for one full sweep.
+30 cities × 63 categories = **1890 Overpass queries** for one full sweep.
 Done naively in a single run that is a guaranteed IP ban on the public
 instance - and it would take over an hour of continuous querying even at the
 pacing this worker uses.
 
 So a run takes a **slice**: `COMBOS_PER_RUN` pairs, then stops and records
 what it finished. The next run continues from exactly where the last one
-stopped. At the default 50, **22 runs cover the whole grid**, after which it
+stopped. At the default 50, **38 runs cover the whole grid**, after which it
 starts a fresh cycle automatically (so a scheduled worker keeps refreshing
 rather than going quiet forever).
 
 Point it at a schedule and forget it:
 
 ```bash
-# hourly - covers the full 30-city grid roughly once a day
+# hourly - covers the full 30-city grid in ~1.6 days
 0 * * * * cd /path/to/qorsa_leadgen && python -m workers.osm.main
 ```
 
 Every run prints where it got to and where the next one will resume:
 
 ```
-Обработано 350/1080 пар (за этот прогон 50), следующий запуск продолжит с: Уфа / Мебель
+Обработано 350/1890 пар (за этот прогон 50), следующий запуск продолжит с: Уфа / Мебель
 ```
 
 The grid is walked **city-major** - one city's categories are crawled
@@ -321,9 +369,12 @@ service nobody is paying for:
   mirrors are run by volunteers and funded by donations, for everyone. There
   is no paid tier we're declining to buy; there's just a shared resource.
 - **This worker is deliberately slow.** 5 seconds between requests, one
-  request at a time, no concurrency. A full 1080-pair sweep spends ~90
-  minutes just pausing. That's the point - it's spread over ~22 scheduled
+  request at a time, no concurrency. A full 1890-pair sweep spends over 2.5
+  hours just *pausing*. That's the point - it's spread across ~38 scheduled
   runs rather than fired off at once.
+- **Growing the grid did not grow the request rate.** Going from 1080 to
+  1890 pairs added more scheduled runs, not more load per run:
+  `COMBOS_PER_RUN` still caps a run at 50 queries either way.
 - **Mirror rotation spreads load, it does not multiply quota.** The same
   pacing and the same backoff apply to whichever endpoint is in use, and we
   only move on when an instance has actively told us it's overloaded. That
@@ -341,8 +392,18 @@ If you see repeated `osm.rate_limited_or_timeout` warnings, raise
 ## Качество данных
 
 Beyond "must have a `name`", the worker drops **national chains and
-franchises** by name (`CHAIN_STOPLIST`): a Пятёрочка or a Сбербанк branch
-already has a website and an in-house IT team, so it's noise, not a lead.
+franchises** by name (`CHAIN_STOPLIST`, ~158 entries): a Пятёрочка or a
+Сбербанк branch already has a website and an in-house IT team, so it's noise,
+not a lead.
+
+The list is grouped by what it defends against, and grew with the new
+categories - DIY/строительные (Леруа Мерлен, OBI, Castorama, Максидом,
+Петрович, Бауцентр, K-Rauta, ВсеИнструменты), мебель/интерьер (IKEA, Hoff,
+Аскона, Шатура, Столплит, Kerama Marazzi, Tikkurila), отели (Hilton,
+Marriott, Radisson, Ibis, Novotel, AZIMUT), коворкинги (Regus, WeWork,
+Workki) and недвижимость (Этажи, Инком, Миэль, Century 21, Домклик). Without
+these, `shop=doityourself` and `tourism=hotel` would be dominated by chain
+branches.
 
 Matching is **whole-word, not raw substring**, and that distinction is
 load-bearing: a substring match on `Магнит` also kills *«Магнитогорская
@@ -354,7 +415,7 @@ ordinary Russian words (`Метро`, `Верный`, `Бургер` are **not**
 Every run ends with a stats line:
 
 ```
-osm.run_summary  combos_processed=50 grid_progress=350/1080 remaining_combos=730
+osm.run_summary  combos_processed=50 grid_progress=350/1890 remaining_combos=1540
                  collected=143 elements_seen=250 skipped_no_name=50
                  skipped_chains=30 skipped_duplicates=27
                  with_phone=88 without_site=101

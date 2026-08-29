@@ -120,6 +120,104 @@ categories:
     key: "shop"
     value: "interior_decoration"  # ~131 - ближайший реальный тег к "натяжным потолкам"
 
+  # --- Мебель на заказ и товары для интерьера ---
+  # Прямые смежники дизайнеров интерьера: кухни, спальни, текстиль, ковры.
+  # Счётчики ниже - число ИМЕНОВАННЫХ объектов в московском bbox (объекты без
+  # name воркер всё равно отбрасывает, так что именно они и важны).
+  - name: "Кухни на заказ"
+    key: "shop"
+    value: "kitchen"              # ~159 именованных
+  - name: "Мебель для ванных"
+    key: "shop"
+    value: "bathroom_furnishing"  # ~50
+  - name: "Спальни и матрасы"
+    key: "shop"
+    value: "bed"                  # ~157
+  - name: "Шторы и текстиль"
+    key: "shop"
+    value: "curtain"              # ~40
+  - name: "Ковры"
+    key: "shop"
+    value: "carpet"               # ~35
+  - name: "Свет и люстры"
+    key: "shop"
+    value: "lighting"             # ~48
+  - name: "Товары для дома"
+    key: "shop"
+    value: "houseware"            # ~238
+
+  # --- Отделочные материалы ---
+  - name: "Напольные покрытия"
+    key: "shop"
+    value: "flooring"             # ~50
+  - name: "Плитка и керамогранит"
+    key: "shop"
+    value: "tiles"                # ~89
+  - name: "Краски и обои"
+    key: "shop"
+    value: "paint"                # ~103
+  - name: "Электрика"
+    key: "shop"
+    value: "electrical"           # ~32
+  - name: "Стройматериалы (DIY)"
+    key: "shop"
+    value: "doityourself"         # ~333
+  - name: "Хозтовары и инструмент"
+    key: "shop"
+    value: "hardware"             # ~579
+  - name: "Оптовая торговля стройматериалами"
+    key: "shop"
+    value: "trade"                # ~37
+
+  # --- Дизайн, проектирование, строительство ---
+  # Тег office=interior_design ОТСУТСТВУЕТ в РФ (0 в Москве) - см. список
+  # отброшенных внизу файла. Архитектурные бюро - ближайшая реальная замена.
+  - name: "Архитектурные бюро"
+    key: "office"
+    value: "architect"            # ~43
+  - name: "Проектные и инженерные бюро"
+    key: "office"
+    value: "engineer"             # ~30
+  - name: "Строительные компании"
+    key: "office"
+    value: "construction_company" # ~25 - тонко, но тег настоящий и растущий
+  - name: "Металлоконструкции"
+    key: "craft"
+    value: "metal_construction"   # ~14 - тонко
+  - name: "Камень и памятники"
+    key: "craft"
+    value: "stonemason"           # ~20 - тонко (в РФ это чаще изготовление памятников)
+  - name: "Вентиляция и климат"
+    key: "craft"
+    value: "hvac"                 # ~10 - на границе, взято ради охвата
+
+  # --- Недвижимость ---
+  - name: "Агентства недвижимости"
+    key: "office"
+    value: "estate_agent"         # ~408 - лучший новый тег по объёму
+
+  # --- Ландшафт и сад ---
+  - name: "Садовые центры"
+    key: "shop"
+    value: "garden_centre"        # ~74
+
+  # --- Объекты, которым нужен дизайн интерьера (потенциальные заказчики) ---
+  - name: "Отели"
+    key: "tourism"
+    value: "hotel"                # ~900
+  - name: "Гостевые дома"
+    key: "tourism"
+    value: "guest_house"          # ~20 - тонко
+  - name: "Апартаменты"
+    key: "tourism"
+    value: "apartment"            # ~26 - тонко
+  - name: "Коворкинги"
+    key: "office"
+    value: "coworking"            # ~38
+  - name: "Коворкинги (старый тег)"
+    key: "amenity"
+    value: "coworking_space"      # ~45 - в РФ размечены обоими тегами, дедуп по osm id снимет пересечение
+
   # --- Розница и быт ---
   - name: "Цветочные магазины"
     key: "shop"
@@ -140,18 +238,41 @@ categories:
     key: "shop"
     value: "travel_agency"
 
-# ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ (проверено вживую, счётчик в московском bbox = 0):
+# ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ
 #
-#   клининг              craft=cleaning            0  (office=cleaning: 99 в мире, нет вики)
-#   свадебные агентства  office=wedding_planner    0
-#   event-агентства      office=event_management   0
-#   ремонт квартир       craft=builder             0  (craft=carpenter: 8)
-#   переезды             office=moving_company     2  (покрыто office=logistics)
+# Все теги ниже РЕАЛЬНЫ и есть в вики — отброшены не за это, а по живому
+# счётчику ИМЕНОВАННЫХ объектов в московском bbox. Объекты без name воркер
+# всё равно выбрасывает, так что «мало именованных» = «лидов не будет».
 #
-# Эти виды бизнеса в российском OSM практически не размечены. Добавлять их
-# теги — значит впустую тратить по 30 запросов к Overpass за полный цикл
-# на каждую категорию и получать ноль лидов. Если нужны именно они, OSM не
-# тот источник; ищи их в 2GIS/Яндекс.Справочнике.
+# Первая волна проверки:
+#   клининг              craft=cleaning             0  (office=cleaning: 99 в мире, нет вики)
+#   свадебные агентства  office=wedding_planner     0
+#   event-агентства      office=event_management    0
+#   переезды             office=moving_company      2  (покрыто office=logistics)
+#
+# Вторая волна (дизайн / ландшафт / стройка):
+#   дизайн интерьера     office=interior_design     0  ← самый «профильный» тег, и он пуст
+#   геодезия             office=surveyor            5
+#   ландшафт/садовники   craft=gardener             3
+#   теплицы              landuse=greenhouse_horticulture  6 именованных из 35
+#                                                        (это сельхоз-полигоны, не бизнес)
+#   сельхозтовары        shop=agrarian              7
+#   садовая мебель       shop=garden_furniture      0
+#
+# ОТДЕЛЬНО — БРИГАДЫ ОТДЕЛОЧНИКОВ. В российском OSM их практически нет:
+#   craft=painter     0     craft=roofer      0     craft=joiner   0
+#   craft=electrician 1     craft=plumber     2     craft=tiler    4
+#   craft=carpenter   5     craft=builder     0
+# Это ожидаемо: частные мастера и мелкие бригады не наносят себя на карту.
+# Как класс лидов они интересны, но OSM их не знает — ищи в Avito/Профи.ру.
+#
+# Каждая такая категория стоила бы 30 запросов к Overpass за полный цикл и
+# вернула бы ноль. Если нужны именно они — OSM не тот источник; смотри
+# 2GIS / Яндекс.Справочник.
+#
+# УЖЕ ЕСТЬ ВЫШЕ, повторно не добавлялись: shop=furniture, shop=florist,
+# shop=interior_decoration, craft=window_construction, amenity=restaurant,
+# amenity=clinic.
 #
 # Также убран прежний catch-all `shop: null` (shop=*): при 30 городах это
 # самый тяжёлый запрос из всех, и он на 100% дублирует 20+ конкретных

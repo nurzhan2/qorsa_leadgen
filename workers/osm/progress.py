@@ -1,6 +1,6 @@
 """Checkpoint of which (city, category) pairs have already been crawled.
 
-Why this exists: the grid is 30 cities x 36 categories = 1080 Overpass
+Why this exists: the grid is 30 cities x 63 categories = 1890 Overpass
 queries. That is far too much for one run - at the (deliberately slow) pacing
 this worker uses it would take hours and lean on a free shared service the
 whole time. So a run does a bounded slice (COMBOS_PER_RUN) and records what

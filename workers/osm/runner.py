@@ -5,8 +5,8 @@ Two limits bound a run, and they answer different questions:
   - TARGET_PER_DAY  - how many companies to ingest ("enough leads for now")
   - COMBOS_PER_RUN  - how many Overpass queries to make ("enough load on a
                       free shared service for now")
-The second is the one that matters for being a good citizen: 30 cities x 36
-categories is 1080 queries, so a run takes a slice, records it in the
+The second is the one that matters for being a good citizen: 30 cities x 63
+categories is 1890 queries, so a run takes a slice, records it in the
 checkpoint, and the next run continues from there. See README.md
 "Режим постепенного обхода".
 """

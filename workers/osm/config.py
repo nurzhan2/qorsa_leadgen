@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # this long between every request, and retries 429/504 with a long
     # exponential backoff (not just this worker being polite - too fast
     # and the public instance blocks the IP for a while). Raised from 3s
-    # now that the grid is 30 cities x 36 categories rather than 2 x 14.
+    # now that the grid is 30 cities x 63 categories rather than 2 x 14.
     request_delay_seconds: float = 5.0
     request_timeout_seconds: float = 75.0
 
@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     )
 
     # --- Incremental crawling (see README "Режим постепенного обхода") ---
-    # How many (city, category) pairs to process per run. 30x36 = 1080 pairs
+    # How many (city, category) pairs to process per run. 30x63 = 1890 pairs
     # is far too many for one sitting; this makes a run a bounded slice and
     # lets a schedule (hourly cron) work through the grid over time.
     combos_per_run: int = 50
@@ -101,10 +101,28 @@ class Settings(BaseSettings):
         "Papa Johns,Папа Джонс,Шоколадница,Кофе Хауз,Starbucks,Старбакс,Cofix,"
         "Fix Price,Фикс Прайс,Летуаль,Л'Этуаль,Рив Гош,Улыбка Радуги,Подружка,"
         "Эльдорадо,М.Видео,МВидео,DNS,ДНС,Ситилинк,"
-        "Леруа Мерлен,Leroy Merlin,OBI,Петрович,Максидом,Hoff,IKEA,ИКЕА,"
         "МТС,Билайн,Мегафон,Tele2,Теле2,Ростелеком,"
         "Ригла,Горздрав,Асна,Планета Здоровья,Аптечная сеть 36.6,"
-        "Спортмастер,Decathlon,Декатлон,Adidas,Nike,Zara,H&M,Uniqlo,Gloria Jeans"
+        "Спортмастер,Decathlon,Декатлон,Adidas,Nike,Zara,H&M,Uniqlo,Gloria Jeans,"
+        # --- DIY / стройматериалы (для shop=doityourself/hardware/paint/tiles/...) ---
+        "Леруа Мерлен,Leroy Merlin,OBI,ОБИ,Castorama,Касторама,Петрович,Максидом,"
+        "Бауцентр,K-Rauta,К-Раута,ВсеИнструменты,Все Инструменты,Стройландия,"
+        "СуперСтрой,Строительный Двор,Аксон,"  # "Сатурн" НЕ добавлен: обычное слово
+        # --- Мебель / интерьер (shop=furniture/kitchen/bed/houseware/...) ---
+        "Hoff,IKEA,ИКЕА,Аскона,Askona,Шатура,Ангстрем,Лазурит,Много Мебели,"
+        "Первый Мебельный,Диван.ру,Кухни Мария,Мебельград,Столплит,"
+        "Kerama Marazzi,Керама Марацци,Tikkurila,Тиккурила,Эмпилс,"
+        # --- Отели (tourism=hotel) ---
+        "Hilton,Marriott,Radisson,Novotel,Ibis,Hyatt,Holiday Inn,Sheraton,"
+        "Crowne Plaza,Mercure,Park Inn,Best Western,Ramada,Hampton,Accor,"
+        "AZIMUT,Азимут Отель,Cosmos Hotel,Интурист,"
+        # --- Коворкинги (office=coworking) ---
+        "Regus,WeWork,Workki,SOK Coworking,Ключ Коворкинг,"
+        # --- Недвижимость (office=estate_agent) ---
+        "Этажи,Инком,Миэль,Century 21,Домклик,Бест-Новострой,Азбука Жилья,"
+        "Метриум,НДВ,Компания Инком-Недвижимость,"
+        # --- Сад (shop=garden_centre) ---
+        "Дарвин,Оби Садовый"
     )
 
     cities_file: Path = MODULE_DIR / "cities.yml"
