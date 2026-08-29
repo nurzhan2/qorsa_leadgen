@@ -4,6 +4,10 @@ monitor.py uses) and rates how often it actually surfaces real one-off
 orders vs. hiring/vacancy noise vs. irrelevant chatter, so you can decide
 which entries in channels.yml are worth keeping.
 
+Like the monitor, this resolves channels through the shared cache
+(resolver.py / channel_cache.py) rather than re-resolving all of them, so
+running the rater doesn't itself trigger a FloodWait.
+
 Run it occasionally (not continuously): `python -m workers.telegram_monitor.channel_rater`
 from the repo root. See README.md "Оценка каналов" for how to read the
 output and act on it.
@@ -19,8 +23,10 @@ import structlog
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 
-from .config import ChannelEntry, MODULE_DIR, Settings, load_channels, load_keywords
+from .channel_cache import STATUS_NOT_FOUND, STATUS_NOT_JOINED, load_cache, normalize_key
+from .config import MODULE_DIR, Settings, load_channels, load_keywords
 from .matcher import Matcher
+from .resolver import ChannelResolver, ResolvedChannel
 
 log = structlog.get_logger(__name__)
 
@@ -38,6 +44,8 @@ class ChannelRating:
     orders: int = 0
     hiring: int = 0
     noise: int = 0
+    #: Why a channel was skipped, when it was ("not_joined"/"not_found").
+    skip_reason: str | None = None
     # Per-channel matched keywords, kept only for optional debugging - not
     # written to the CSV (task's column list doesn't include it), but
     # useful if you want to inspect *why* a channel scored the way it did.
@@ -69,18 +77,16 @@ class ChannelRater:
         self._matcher = matcher
         self._client = client
 
-    async def rate_channel(self, entry: ChannelEntry) -> ChannelRating:
-        identifier = str(entry.target)
-        rating = ChannelRating(identifier=identifier)
-
-        entity = await self._resolve(entry, identifier)
-        if entity is None:
-            return rating  # subscribed stays False - logged already in _resolve
-
-        rating.subscribed = True
+    async def rate_channel(self, channel: ResolvedChannel) -> ChannelRating:
+        """Reads history for one ALREADY-RESOLVED channel. Resolution is the
+        resolver's job (and is cached); this only reads messages, using the
+        cached peer so no ResolveUsername call happens here."""
+        rating = ChannelRating(identifier=channel.key, subscribed=True)
 
         try:
-            async for message in self._client.iter_messages(entity, limit=self._settings.rate_sample):
+            async for message in self._client.iter_messages(
+                channel.to_input_peer(), limit=self._settings.rate_sample
+            ):
                 text = message.raw_text or ""
                 rating.total_posts += 1
                 result = self._matcher.match(text)
@@ -92,35 +98,22 @@ class ChannelRater:
                 else:
                     rating.noise += 1
         except FloodWaitError as exc:
-            log.warning("channel_rater.flood_wait_on_history", seconds=exc.seconds, target=identifier)
+            log.warning("channel_rater.flood_wait_on_history", seconds=exc.seconds, target=channel.key)
             await asyncio.sleep(exc.seconds)
             # Don't retry the whole history read - keep whatever was
             # counted so far rather than doubling up or losing the channel
             # entirely over one rate limit.
         except Exception as exc:  # noqa: BLE001 - one bad channel must never stop the whole rating run
-            log.error("channel_rater.history_read_failed", target=identifier, error=str(exc))
+            log.error("channel_rater.history_read_failed", target=channel.key, error=str(exc))
+            rating.subscribed = False
+            rating.skip_reason = "read_failed"
 
         return rating
 
-    async def _resolve(self, entry: ChannelEntry, identifier: str):
-        try:
-            return await self._client.get_entity(entry.target)
-        except FloodWaitError as exc:
-            log.warning("channel_rater.flood_wait_on_resolve", seconds=exc.seconds, target=identifier)
-            await asyncio.sleep(exc.seconds)
-            try:
-                return await self._client.get_entity(entry.target)
-            except Exception as exc2:  # noqa: BLE001
-                log.error("channel_rater.not_accessible", target=identifier, error=str(exc2))
-                return None
-        except Exception as exc:  # noqa: BLE001 - private/deleted/renamed channel, wrong username, ...
-            log.error("channel_rater.not_accessible", target=identifier, error=str(exc))
-            return None
-
-    async def rate_all(self, entries: list[ChannelEntry]) -> list[ChannelRating]:
+    async def rate_all(self, channels: list[ResolvedChannel]) -> list[ChannelRating]:
         ratings = []
-        for entry in entries:
-            rating = await self.rate_channel(entry)
+        for channel in channels:
+            rating = await self.rate_channel(channel)
             ratings.append(rating)
             log.info(
                 "channel_rater.channel_done",
@@ -135,6 +128,19 @@ class ChannelRater:
             )
             await asyncio.sleep(self._settings.rate_channel_delay_seconds)
         return ratings
+
+
+def skipped_ratings(entries, cache) -> list[ChannelRating]:
+    """Rows for channels the resolver excluded, so the CSV still accounts for
+    every line of channels.yml instead of quietly dropping the dead ones."""
+    rows = []
+    for entry in entries:
+        key = normalize_key(entry.target)
+        cached = cache.get(key)
+        status = (cached or {}).get("status")
+        if status in (STATUS_NOT_JOINED, STATUS_NOT_FOUND):
+            rows.append(ChannelRating(identifier=key, subscribed=False, skip_reason=status))
+    return rows
 
 
 def print_report(ratings: list[ChannelRating]) -> None:
@@ -152,7 +158,7 @@ def print_report(ratings: list[ChannelRating]) -> None:
             str(rating.hiring).ljust(widths[4]),
             str(rating.noise).ljust(widths[5]),
             f"{rating.order_rate * 100:.1f}".ljust(widths[6]),
-            rating.verdict,
+            rating.verdict + (f" ({rating.skip_reason})" if rating.skip_reason else ""),
         )
         print("  ".join(row))
 
@@ -163,7 +169,9 @@ def write_csv_report(path, ratings: list[ChannelRating]) -> None:
     # editor but garbles in Excel on Windows without the BOM.
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        writer.writerow(["username", "подписан", "total", "orders", "hiring", "noise", "order_rate%", "вердикт"])
+        writer.writerow(
+            ["username", "подписан", "total", "orders", "hiring", "noise", "order_rate%", "вердикт", "причина"]
+        )
         for rating in ratings:
             writer.writerow([
                 rating.identifier,
@@ -174,6 +182,7 @@ def write_csv_report(path, ratings: list[ChannelRating]) -> None:
                 rating.noise,
                 f"{rating.order_rate * 100:.1f}",
                 rating.verdict,
+                rating.skip_reason or "",
             ])
 
 
@@ -195,17 +204,22 @@ async def _run() -> None:
     settings = Settings()
     _configure_logging(settings.log_level)
 
-    channels = load_channels(settings.channels_file).channels
+    entries = load_channels(settings.channels_file).channels
     keywords = load_keywords(settings.keywords_file)
     matcher = Matcher(keywords)
 
-    log.info("channel_rater.starting", channels=len(channels), sample=settings.rate_sample)
+    log.info("channel_rater.starting", channels=len(entries), sample=settings.rate_sample)
 
     client = TelegramClient(settings.tg_session, settings.tg_api_id, settings.tg_api_hash)
     await client.start()
     try:
+        cache = load_cache(settings.channel_cache_file)
+        outcome = await ChannelResolver(client, settings, cache).resolve(entries)
+        print(outcome.summary_line())
+
         rater = ChannelRater(settings, matcher, client)
-        ratings = await rater.rate_all(channels)
+        ratings = await rater.rate_all(outcome.channels)
+        ratings.extend(skipped_ratings(entries, cache))
     finally:
         if client.is_connected():
             await client.disconnect()

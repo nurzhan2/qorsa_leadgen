@@ -64,7 +64,31 @@ LOG_LEVEL=INFO
 # channel_rater.py only - see "Оценка каналов" below.
 RATE_SAMPLE=50
 RATE_CHANNEL_DELAY_SECONDS=2.0
+
+# Channel resolution & FloodWait policy - see "Кэш каналов и FloodWait".
+RESOLVE_DELAY_SECONDS=2.0
+CACHE_TTL_DAYS=30
+MAX_FLOOD_WAIT_SECONDS=300
+FORCE_RESOLVE=false
 ```
+
+| variable | default | what it does |
+|---|---|---|
+| `RESOLVE_DELAY_SECONDS` | `2.0` | pause between username resolves (only for channels the cache can't answer for) |
+| `CACHE_TTL_DAYS` | `30` | how long a cached resolve stays valid before being re-checked |
+| `MAX_FLOOD_WAIT_SECONDS` | `300` | if Telegram asks for a longer wait than this, stop resolving this run and keep what we have |
+| `FORCE_RESOLVE` | `false` | re-resolve everything, ignoring the cache - set after joining new channels |
+
+> **Windows: не сохраняй `.env` с BOM.** Notepad and PowerShell's
+> `Out-File`/`Set-Content` write a UTF-8 **BOM** by default. A BOM at the start
+> of `.env` becomes part of the **first variable's name** - `TG_API_ID` is read
+> as `﻿TG_API_ID` - so that one variable silently goes missing and the
+> worker dies at startup with
+> `ValidationError: tg_api_id Field required`, which looks like "I didn't fill
+> it in" even though you did. All six workers now read `.env` as `utf-8-sig`,
+> which tolerates the BOM, so this can't bite any more - but if you're editing
+> by hand, save as "UTF-8" rather than "UTF-8 with BOM" anyway. (In PowerShell:
+> `Set-Content -Encoding utf8NoBOM`, or just use an editor like VS Code.)
 
 Install dependencies (a virtualenv is recommended):
 
@@ -101,10 +125,27 @@ channels:
   # - id: -1001234567890                # private chat: use its numeric id
 ```
 
+Entries may also carry `title`/`priority`/`category` for your own bookkeeping;
+the loader ignores unknown keys, so annotate freely.
+
 Where to find order-style channels: Telegram's own search, freelance/order
 aggregator channels for your city or niche, "нужен сайт"-style tag channels,
 etc. This is a manual, human decision (which communities to join) by
 design - the worker only reads what's already visible to a member.
+
+> **Если русские `title` выглядят кракозябрами** - это почти наверняка твой
+> просмотрщик, а не файл. `channels.yml` is stored as plain UTF-8 (no BOM),
+> and `config.py` reads it with an explicit `encoding="utf-8"`, so the worker
+> is unaffected by the host's code page. A Russian-locale Windows console
+> defaults to CP866/CP1251 and will render UTF-8 Cyrillic as `????`/`Ð...`
+> garbage on `type`/`cat`. Check with `python -X utf8 -c "print(open(r'channels.yml',encoding='utf-8').read()[:400])"`,
+> or open it in VS Code - if it reads correctly there, the file is fine. Don't
+> "repair" it by re-saving from a mis-decoding editor; that's what would
+> actually corrupt it.
+
+You do **not** have to be a member of everything you list. Channels this
+account isn't in are detected once, remembered, and skipped from then on -
+see "Кэш каналов" below.
 
 ### 5. Tune `keywords.yml`
 
@@ -168,6 +209,141 @@ leads flow in real time. Posts that got rejected as vacancies are logged at
 DEBUG level only (`monitor.post_rejected`) and never sent to the core - set
 `LOG_LEVEL=DEBUG` in `.env` if you want to see (and tune against) what's
 being filtered out.
+
+On startup it prints a one-line summary of what it's actually watching:
+
+```
+Мониторю 56 каналов | пропущено: 28 не подписан, 14 не найдено | из кэша: 98, резолв сейчас: 0
+```
+
+## Кэш каналов и FloodWait
+
+### Зачем
+
+Telegram doesn't hand out a channel's numeric id for free: turning
+`@fordev` into something the client can listen to costs a
+`ResolveUsernameRequest`. With 98 channels in `channels.yml`, a worker that
+resolves on every start makes **98 of those calls in a burst, every single
+restart** - and Telegram answers that the way it's supposed to, with an
+escalating `FloodWait`: 3s, then 51s, then longer.
+
+A channel's id and `access_hash` don't change. So the fix isn't to get around
+the limit - it's to **stop making the calls**: resolve once, write the answer
+to `channel_cache.json`, and read it from there forever after.
+
+| | resolve calls | dialog calls |
+|---|---|---|
+| first run (cold cache) | 98 | 1 |
+| **every restart after that** | **0** | **0** |
+| after `FORCE_RESOLVE=true` | 98 | 1 |
+
+The membership check ("am I actually subscribed?") is one `get_dialogs`
+request that answers for all 98 channels at once, rather than a per-channel
+probe.
+
+### Честно про FloodWait
+
+**`FloodWait` is Telegram working correctly, not an obstacle.** It is the
+server saying "you're going too fast, wait N seconds". This worker's entire
+strategy is to *stop needing to ask*, and when it does get a `FloodWait`, to
+**wait exactly as long as it was told**:
+
+- It logs the wait (`resolver.flood_wait`) and sleeps that long. It never
+  shortens, skips, or retries through a wait.
+- If the wait exceeds `MAX_FLOOD_WAIT_SECONDS` (default 300), it **stops
+  resolving for that run**, keeps whatever it already resolved, and monitors
+  those channels. The remainder is picked up on a later run. This is a
+  ceiling on how long the worker blocks - not a way around the limit.
+- Two `FloodWait`s in a row means the account is genuinely throttled, so it
+  stops rather than poking harder.
+
+There is deliberately **no proxy rotation, no second session, no parallel
+resolving, and no ignoring of pauses**. Those would be attempts to evade a
+rate limit, which is exactly what Telegram's terms prohibit. The only lever
+pulled here is the legitimate one: making far fewer requests.
+
+If you're still getting `FloodWait` on a first run with a cold cache, raise
+`RESOLVE_DELAY_SECONDS`, or just run it twice - the second run resumes from
+the cache and only resolves what's left.
+
+### Где лежит и что внутри
+
+`workers/telegram_monitor/channel_cache.json` (gitignored - it's
+machine-local state tied to one account's session, not source):
+
+```json
+{
+  "fordev": {
+    "id": -1001234567890,
+    "access_hash": 7712345678901234567,
+    "title": "Вакансии Backend/Frontend (веб)",
+    "resolved_at": "2026-08-29T17:29:11.482913+00:00",
+    "status": "ok"
+  }
+}
+```
+
+`status` is one of:
+
+| status | meaning | what to do |
+|---|---|---|
+| `ok` | resolved, and this account is a member | monitored |
+| `not_joined` | the channel exists, but you're not in it | join it, or drop the line from `channels.yml` |
+| `not_found` | no such username - renamed or deleted | drop the line from `channels.yml` |
+
+**Negative results are cached on purpose.** Without that, every dead or
+unsubscribed channel would burn a resolve call on every start forever - which
+is a large part of what caused the original problem.
+
+Entries older than `CACHE_TTL_DAYS` (default 30) get re-resolved on their
+own, so renames and channels you joined later do eventually get picked up
+without any manual step.
+
+### Как сбросить
+
+Two equivalent ways, both fine:
+
+```bash
+# 1) one-off: re-resolve everything on the next run
+FORCE_RESOLVE=true python -m workers.telegram_monitor.main
+```
+
+```bash
+# 2) permanent: just delete the file
+rm workers/telegram_monitor/channel_cache.json
+```
+
+**Вступил в новые каналы → нужен `FORCE_RESOLVE`.** A channel cached as
+`not_joined` is trusted until its TTL expires, so joining it in the Telegram
+app won't be noticed until you either force a re-resolve or wait out
+`CACHE_TTL_DAYS`. Set `FORCE_RESOLVE=true`, run once, then set it back to
+`false` - leaving it on permanently re-creates the exact FloodWait problem
+this cache exists to solve.
+
+### Какие каналы мёртвые: `--report`
+
+```bash
+python -m workers.telegram_monitor.channel_cache --report
+```
+
+Reads the cache offline - no Telegram connection, no session needed - and
+prints every channel worst-status-first, so the lines worth deleting from
+`channels.yml` are at the top:
+
+```
+username     status      resolved_at          age    title
+------------------------------------------------------------------
+deadchan     not_found   2026-08-29T17:29:42  today
+lurking      not_joined  2026-08-29T17:29:42  today  Не подписан
+fordev       ok          2026-08-29T17:29:42  today  Вакансии Backend
+
+Total 3 cached: 1 ok, 1 not_joined, 1 not_found
+```
+
+Use it to prune `channels.yml`: delete the `not_found` rows outright, and for
+`not_joined` decide per channel whether to join it or drop it. Pair it with
+`channel_rater.py` below, which judges the channels you *are* in on whether
+they actually produce orders.
 
 ## Оценка каналов (`channel_rater.py`)
 
@@ -255,9 +431,14 @@ Two independent layers:
 
 ## Resilience
 
-- `FloodWaitError` from Telegram (rate limiting) is caught around entity
-  resolution and message metadata lookups - the worker sleeps for the
-  requested duration and continues, instead of crashing.
+- **Channel resolution is cached** (`channel_cache.json`), so a restart costs
+  zero `ResolveUsername` calls - see "Кэш каналов и FloodWait" above. This is
+  the difference between a clean start and an escalating rate limit.
+- `FloodWaitError` from Telegram is **obeyed, never worked around**: the
+  worker logs how long it was told to wait, waits exactly that long, and
+  continues. Beyond `MAX_FLOOD_WAIT_SECONDS` it stops resolving for the run
+  and keeps what it already has, rather than blocking indefinitely.
+- The same handling wraps message metadata lookups during live monitoring.
 - `core_client.py` retries network errors and 5xx responses up to 3 times
   with exponential backoff (1s, 2s); 4xx responses (bad payload) are not
   retried.
@@ -273,32 +454,48 @@ pytest workers/telegram_monitor/tests
 cd workers/telegram_monitor && pytest
 ```
 
-`test_matcher.py` and `test_extractor.py` run entirely on string fixtures -
-no network, no Telegram, no core required. `test_channel_rater.py` covers
-the order-rate/verdict math directly, plus `rate_channel`/`rate_all` against
-a small in-memory fake standing in for the Telethon client (async tests, via
-`pytest-asyncio`) - also no real network or Telegram session required.
+Everything runs offline - no network, no Telegram session, no core:
+
+- `test_matcher.py` / `test_extractor.py` - plain string fixtures.
+- `test_channel_cache.py` - JSON round-trip across a simulated restart, TTL
+  and expiry, corrupt/missing files, and the `--report` output.
+- `test_resolver.py` - the rate-limit behaviour, asserted directly rather
+  than assumed: that cached channels produce **zero** `get_entity` calls,
+  that a `FloodWait` is **slept for its full duration**, that an
+  over-ceiling wait stops the pass while keeping (and persisting) prior
+  progress, and that `not_joined`/`not_found` channels are skipped without
+  being re-resolved. The fake client is driven with real Telethon
+  `Channel` objects and real `FloodWaitError`s.
+- `test_channel_rater.py` - order-rate/verdict math, plus `rate_channel`
+  reading history from an already-resolved peer (its fake client has no
+  `get_entity` at all, so a regression back to per-run resolving would fail
+  the test).
 
 ## Files
 
 ```
 telegram_monitor/
 ├── __init__.py
-├── config.py           # .env settings + channels.yml/keywords.yml loaders (pydantic)
-├── keywords.yml        # editable keyword dictionary
-├── channels.yml        # editable channel list (placeholders - fill in real ones)
-├── matcher.py           # post text -> is this an order request, or a vacancy in disguise?
-├── extractor.py         # post text -> contact info
-├── core_client.py       # HTTP client to the Java core, with retries
-├── monitor.py            # Telethon wiring: listen, match, extract, send
-├── channel_rater.py       # standalone: rate channels.yml entries by history order_rate
-├── channel_report.csv     # generated by channel_rater.py - not committed
-├── main.py                # entry point (live monitor)
+├── config.py            # .env settings + channels.yml/keywords.yml loaders (pydantic)
+├── keywords.yml         # editable keyword dictionary
+├── channels.yml         # editable channel list (placeholders - fill in real ones)
+├── matcher.py            # post text -> is this an order request, or a vacancy in disguise?
+├── extractor.py          # post text -> contact info
+├── channel_cache.py      # resolved-channel cache (pure JSON/TTL) + `--report` CLI
+├── channel_cache.json    # the cache itself - machine-local, not committed
+├── resolver.py            # channels.yml -> listenable peers, cache-first, FloodWait-respecting
+├── core_client.py         # HTTP client to the Java core, with retries
+├── monitor.py              # Telethon wiring: listen, match, extract, send
+├── channel_rater.py         # standalone: rate channels.yml entries by history order_rate
+├── channel_report.csv       # generated by channel_rater.py - not committed
+├── main.py                  # entry point (live monitor)
 ├── requirements.txt
 ├── .env.example
 └── tests/
     ├── conftest.py
     ├── test_matcher.py
     ├── test_extractor.py
+    ├── test_channel_cache.py
+    ├── test_resolver.py
     └── test_channel_rater.py
 ```

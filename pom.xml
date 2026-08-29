@@ -144,6 +144,30 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                      Surefire's default includes are *Test/Test*/*Tests/*TestCase
+                      only, so the Testcontainers integration tests (*IT) were
+                      never actually executed by `mvn test` - they compiled and
+                      were silently skipped. Including them here makes `mvn test`
+                      mean what it looks like it means.
+
+                      This does NOT add a new Docker requirement: LeadRepositoryTest
+                      already pulls in Testcontainers under the default includes,
+                      so `mvn test` has always needed a running Docker daemon.
+                    -->
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/Test*.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

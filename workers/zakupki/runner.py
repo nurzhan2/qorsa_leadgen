@@ -116,7 +116,10 @@ class ZakupkiRunner:
         except ZakupkiClientError:
             log.error("zakupki.details_fetch_failed", reg_number=purchase.get("reg_number"))
             return None
-        return parse_purchase_card(html)
+        # Passing the URL lets parse_purchase_card pick the 44-FZ/223-FZ
+        # branch from the notice's own path (/223/...) instead of having to
+        # sniff the markup - see parser.py _looks_like_223.
+        return parse_purchase_card(html, url=detail_url)
 
     async def _send(self, batch: list[RawCompanyRequest]) -> None:
         if not batch:

@@ -36,9 +36,10 @@ text.
 purchase's own detail page and parses it (`parser.py: parse_purchase_card`)
 for the fields the list page doesn't reliably carry: the **full** subject,
 **budget as an actual number** (НМЦК, parsed from "8 398 003,33 ₽" style
-text), the submission deadline, the law type (44-FZ/223-FZ), and - on
-44-FZ notices - a **customer contact phone** straight from the notice's
-own "Контактная информация" block.
+text), the submission deadline, the law type (44-FZ/223-FZ), and a
+**customer contact phone** straight from the notice's own "Контактная
+информация" block. Works for both 44-FZ and 223-FZ notices, which use
+different page templates - see "44-ФЗ и 223-ФЗ" below.
 
 **This doubles (or worse) the request volume** - one extra request per
 purchase, on top of the search page. That's exactly why it's gated:
@@ -68,13 +69,76 @@ results, real detail pages, both 44-FZ and 223-FZ notices):
   Federal Treasury's payment routing details (a different entity
   entirely), and the parser deliberately does NOT pick that up as the
   customer's INN. Coming back `None` here is expected, not a bug.
-- **223-FZ notices use a different detail-page template** than 44-FZ ones.
-  `parse_purchase_card`'s selectors were built and verified against a
-  44-FZ notice; on a live 223-FZ example, `budget` still came through
-  correctly (that part of the markup happens to be shared), but
-  `subject`/`deadline`/`law_type`/`customer_phone` came back `None`. This
-  is a known gap, not a silent failure - the lead is still sent with
-  whatever level 1 + partial level 2 data is available.
+- **223-FZ notices use a completely different detail-page template** than
+  44-FZ ones, so `parse_purchase_card` has **two branches** and picks
+  between them automatically. See "44-ФЗ и 223-ФЗ" below.
+
+## 44-ФЗ и 223-ФЗ: две ветки разбора карточки
+
+A 223-FZ notice link
+(`zakupki.gov.ru/223/purchase/public/purchase/info/common-info.html?regNumber=…`)
+302-redirects to `…/epz/order/notice/notice223/common-info.html`, which
+shares **no** markup with the 44-FZ card template. Measured on real pages
+of both kinds (verified live 2026-08-29):
+
+| selector | 44-ФЗ page | 223-ФЗ page |
+|---|---|---|
+| `.cardMainInfo__title` | 8 | **0** |
+| `.section__title` | 45+ | **0** |
+| `.common-text__title` | **0** | 29+ |
+| `.registry-entry__header-top__title` | **0** | 1 |
+| `.price-block__value` | **0** | 1 |
+
+Zero overlap, which is what makes dispatch reliable rather than a guess.
+`parse_purchase_card(html, url=…)` decides by **URL first** (a `/223/` or
+`/notice223/` path is authoritative), falling back to markup sniffing when
+called without a URL. Both branches return the **same seven keys**, so
+`mapper.py` never needs to know which law a notice came under.
+
+The label wording differs too - same field, different words:
+
+| field | 44-ФЗ label | 223-ФЗ label |
+|---|---|---|
+| `subject` | «Объект закупки» | «Наименование закупки» |
+| `deadline` | «Окончание подачи заявок» | «Дата и время окончания срока подачи заявок (по местному времени заказчика)» |
+| `customer_phone` | «Номер контактного телефона» | «Контактный телефон» |
+| `budget` | «Начальная цена» (`.cardMainInfo__content`) | «Начальная цена» (`.price-block__value`) |
+| `law_type` | `.cardMainInfo__title` own text | `.registry-entry__header-top__title`, inline with the purchase method |
+
+### Что реально есть на странице (честно)
+
+Not every field exists under both laws. Verified against three real 223-FZ
+notices (`32616263956`, `32616292415`, `32616327624`) and two real 44-FZ
+ones:
+
+| field | 44-ФЗ | 223-ФЗ |
+|---|---|---|
+| `subject` | ✅ | ✅ |
+| `budget` | ✅ | ✅ |
+| `deadline` | ✅ (date only, e.g. `28.08.2026`) | ✅ (date **+ time + timezone**, e.g. `04.09.2026 12:00 (МСК)`) |
+| `law_type` | ✅ | ✅ |
+| `customer_phone` | ✅ | ✅ |
+| `customer_inn` | ❌ usually absent (see the Treasury-INN note above) | ✅ present, in «Сведения о заказчике» |
+| `region` | ✅ often present | ❌ **genuinely absent** |
+
+Two honest gaps worth knowing about, neither of them papered over:
+
+- **`region` does not exist on a 223-FZ notice.** There is no «Регион»
+  label anywhere on the page. The closest thing is «Место нахождения», a
+  full postal address (`214020, СМОЛЕНСКАЯ ОБЛАСТЬ, Г.. СМОЛЕНСК, УЛ.
+  ШЕВЧЕНКО, Д. 77А`). `mapper.py` feeds `region` straight into the lead's
+  `city`, and putting a whole address in a `city` field would be worse than
+  leaving it empty - so 223-FZ leads come through with **`city = null`**,
+  deliberately. If you want city on these leads, that needs a real address
+  parser, which this worker does not pretend to have.
+- **`deadline` is not a uniform format across the two laws** - a bare date
+  under 44-FZ, a date+time+timezone string under 223-FZ. It's passed
+  through verbatim as the site presents it rather than being normalized
+  into something that would silently drop the timezone.
+
+Conversely, 223-FZ notices are the **better** source for `customer_inn`:
+44-FZ pages usually don't carry the customer's own INN at all, while every
+223-FZ page tested did.
 
 ### Хрупкость парсера (важно)
 
@@ -89,9 +153,16 @@ To keep this from being an all-or-nothing failure mode:
 - Every field is looked up **by its label text** - `.registry-entry__body-title`
   contents ("Предмет закупки"/"Регион поставки") on the search page,
   `.cardMainInfo__title`/`.section__title` contents ("Объект закупки"/
-  "Номер контактного телефона"/...) on the detail page - not by position,
-  so if the site reorders fields, lookups still find the right one instead
-  of silently grabbing the wrong value.
+  "Номер контактного телефона"/...) on a 44-FZ detail page, and
+  `.common-text__title` contents ("Наименование закупки"/"Контактный
+  телефон"/...) on a 223-FZ one - not by position, so if the site reorders
+  fields, lookups still find the right one instead of silently grabbing the
+  wrong value.
+- On the 223-FZ page the value is the label's **next sibling**, not
+  something under its parent, and this matters: in the «Сведения о
+  заказчике» block the ИНН *label itself* also carries
+  `.common-text__value`, so a parent-scoped lookup would return the string
+  "ИНН" instead of the number. There's a regression test for exactly that.
 - Looking up a detail-page field by its title class does **not** assume
   any particular wrapping container class either: "Начальная цена" turned
   out to live in a plain `<div class="price">` rather than the
@@ -185,8 +256,8 @@ contract).
 | Field       | Value |
 |-------------|-------|
 | `name`      | The customer's name (заказчик) |
-| `phone`     | The contact phone from the detail page's "Контактная информация" block, when found (44-FZ notices) - lets the core's contact+geo (+10) and phone-type rules fire |
-| `city`      | The region, from the search page or (more often) the detail page |
+| `phone`     | The contact phone from the detail page's "Контактная информация" block, when found (both 44-FZ and 223-FZ) - lets the core's contact+geo (+10) and phone-type rules fire |
+| `city`      | The region, from the search page or (more often) the 44-FZ detail page. **`null` for 223-FZ notices** - that template has no region field at all, see above |
 | `source`    | always `"ZAKUPKI"` |
 | `sourceUrl` | Link to the purchase notice itself |
 | `hasSite`   | always `true` - the customer is a real government/municipal body or state-owned company and almost certainly already has a site; reporting `false` here would falsely trigger the core's "+40 no site" rule |
@@ -260,10 +331,13 @@ network, no real requests to zakupki.gov.ru:
 
 - `test_parser.py` - `parse_search_html` (search page → purchase dicts:
   full card, multiple cards, missing fields, both 44-FZ/223-FZ link
-  formats), `parse_purchase_card` (detail page → enrichment dict: full
-  card, missing price block, the "customer INN vs. Treasury INN" honest
-  distinction above, blank/garbage input), and `parse_money` (Russian
-  currency-text → float, including non-breaking spaces).
+  formats), `parse_purchase_card` for **both laws** (44-FZ: full card,
+  missing price block, the "customer INN vs. Treasury INN" honest
+  distinction above; 223-FZ: full card, URL-based and markup-based
+  dispatch, the ИНН grey-label trap, `region` staying `None` on purpose,
+  law-type fallback to the URL, and 44-FZ not being misdetected as 223-FZ),
+  plus `parse_money` (Russian currency-text → float, including
+  non-breaking spaces).
 - `test_mapper.py` - `merge_purchase_with_details` (level-1/level-2 field
   precedence, budget-parsing fallback when no details were fetched) and
   `map_purchase_to_lead` (dict → `RawCompanyRequest`, including the

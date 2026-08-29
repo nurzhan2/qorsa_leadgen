@@ -1,48 +1,161 @@
-# OSM tags to search for, one Overpass query per (city x category) pair.
-# `value` omitted/null matches ANY value for that key (e.g. "шop=*").
-# Add/remove freely - no code changes needed. See
-# https://wiki.openstreetmap.org/wiki/Map_features for the full tag list.
+# OSM tags to search for - one Overpass query per (city x category) pair.
+# `value` omitted/null matches ANY value for that key (e.g. shop=*).
+# Add/remove freely - no code changes needed.
+#
+# EVERY TAG BELOW WAS VERIFIED, NOT GUESSED. Two checks, both run while
+# building this file:
+#   1. taginfo (https://taginfo.openstreetmap.org) - is the tag real,
+#      documented on the wiki, and actually used worldwide?
+#   2. A live Overpass count inside the Moscow bbox - is it used IN RUSSIA?
+#      A tag can be popular worldwide and effectively absent here.
+# The "~N в Москве" comments are that second number, so a future editor can
+# see at a glance which categories are worth their query and which aren't.
+#
+# See https://wiki.openstreetmap.org/wiki/Map_features for the full tag list.
+# If you add a category, check it the same way first: an unused tag still
+# costs one Overpass request per city (30 of them) and returns nothing.
 
 categories:
+  # --- Еда и напитки ---
   - name: "Кафе"
     key: "amenity"
-    value: "cafe"
+    value: "cafe"            # ~6233 в Москве
   - name: "Рестораны"
     key: "amenity"
     value: "restaurant"
+  - name: "Пекарни"
+    key: "shop"
+    value: "bakery"          # ~1076
+  - name: "Кондитерские"
+    key: "shop"
+    value: "confectionery"   # ~331
+
+  # --- Медицина и здоровье ---
   - name: "Стоматологии"
     key: "amenity"
     value: "dentist"
-  - name: "Автосервисы"
-    key: "shop"
-    value: "car_repair"
-  - name: "Магазины автозапчастей"
-    key: "shop"
-    value: "car_parts"
-  - name: "Салоны красоты"
-    key: "shop"
-    value: "beauty"
-  - name: "Парикмахерские"
-    key: "shop"
-    value: "hairdresser"
-  - name: "Фитнес-клубы"
-    key: "leisure"
-    value: "fitness_centre"
-  - name: "Магазины одежды"
-    key: "shop"
-    value: "clothes"
-  - name: "Юридические услуги"
-    key: "office"
-    value: "lawyer"
-  - name: "Магазины (общее)"
-    key: "shop"
-    value: null
   - name: "Клиники"
     key: "amenity"
     value: "clinic"
   - name: "Ветеринарные клиники"
     key: "amenity"
     value: "veterinary"
+  - name: "Аптеки"
+    key: "amenity"
+    value: "pharmacy"        # ~5932
+  - name: "Оптики"
+    key: "shop"
+    value: "optician"        # ~646
+  - name: "Массаж и СПА"
+    key: "shop"
+    value: "massage"         # ~285 (leisure=spa - НЕ используется: 365 в мире, нет вики-страницы)
+
+  # --- Красота ---
+  - name: "Салоны красоты"
+    key: "shop"
+    value: "beauty"
+  - name: "Парикмахерские"
+    key: "shop"
+    value: "hairdresser"
+  - name: "Тату-салоны"
+    key: "shop"
+    value: "tattoo"          # ~72
+
+  # --- Авто ---
+  - name: "Автосервисы"
+    key: "shop"
+    value: "car_repair"
+  - name: "Магазины автозапчастей"
+    key: "shop"
+    value: "car_parts"
+  - name: "Автомойки"
+    key: "amenity"
+    value: "car_wash"        # ~1544
+  - name: "Шиномонтаж"
+    key: "shop"
+    value: "tyres"           # ~124
+  - name: "Автошколы"
+    key: "amenity"
+    value: "driving_school"  # ~268
+
+  # --- Образование и дети ---
+  - name: "Детские сады"
+    key: "amenity"
+    value: "kindergarten"    # ~3592
+  - name: "Языковые школы"
+    key: "amenity"
+    value: "language_school" # ~216
+  - name: "Учебные центры и курсы"
+    key: "amenity"
+    value: "training"        # ~503 - репетиторские/курсы подготовки
+
+  # --- Услуги для бизнеса ---
+  - name: "Юридические услуги"
+    key: "office"
+    value: "lawyer"
+  - name: "Нотариусы"
+    key: "office"
+    value: "notary"          # ~250
+  - name: "Бухгалтерские услуги"
+    key: "office"
+    value: "accountant"      # ~17 - редко размечено, но тег настоящий
+  - name: "Грузоперевозки и логистика"
+    key: "office"
+    value: "logistics"       # ~225 (office=moving_company - только ~2, не берём)
+  - name: "Типографии и копицентры"
+    key: "shop"
+    value: "copyshop"        # ~704
+
+  # --- Дом и ремонт ---
+  - name: "Мебель"
+    key: "shop"
+    value: "furniture"       # ~908
+  - name: "Окна"
+    key: "craft"
+    value: "window_construction"  # ~94 (shop=windows - НЕ настоящий тег: 254 в мире, нет вики)
+  - name: "Двери"
+    key: "shop"
+    value: "doors"           # ~139
+  - name: "Отделка интерьеров"
+    key: "shop"
+    value: "interior_decoration"  # ~131 - ближайший реальный тег к "натяжным потолкам"
+
+  # --- Розница и быт ---
+  - name: "Цветочные магазины"
+    key: "shop"
+    value: "florist"         # ~2353
+  - name: "Зоомагазины"
+    key: "shop"
+    value: "pet"             # ~853
+  - name: "Химчистки"
+    key: "shop"
+    value: "dry_cleaning"    # ~858
+  - name: "Магазины одежды"
+    key: "shop"
+    value: "clothes"
+  - name: "Фитнес-клубы"
+    key: "leisure"
+    value: "fitness_centre"
   - name: "Турагентства"
     key: "shop"
     value: "travel_agency"
+
+# ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ (проверено вживую, счётчик в московском bbox = 0):
+#
+#   клининг              craft=cleaning            0  (office=cleaning: 99 в мире, нет вики)
+#   свадебные агентства  office=wedding_planner    0
+#   event-агентства      office=event_management   0
+#   ремонт квартир       craft=builder             0  (craft=carpenter: 8)
+#   переезды             office=moving_company     2  (покрыто office=logistics)
+#
+# Эти виды бизнеса в российском OSM практически не размечены. Добавлять их
+# теги — значит впустую тратить по 30 запросов к Overpass за полный цикл
+# на каждую категорию и получать ноль лидов. Если нужны именно они, OSM не
+# тот источник; ищи их в 2GIS/Яндекс.Справочнике.
+#
+# Также убран прежний catch-all `shop: null` (shop=*): при 30 городах это
+# самый тяжёлый запрос из всех, и он на 100% дублирует 20+ конкретных
+# shop-категорий выше. Верни строкой ниже, если он всё же нужен:
+#   - name: "Магазины (общее)"
+#     key: "shop"
+#     value: null

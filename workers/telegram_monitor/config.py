@@ -23,7 +23,10 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=str(MODULE_DIR / ".env"),
-        env_file_encoding="utf-8",
+        env_file_encoding="utf-8-sig",  # -sig: tolerate a UTF-8 BOM, which
+        # Notepad/PowerShell on Windows silently prepend when saving a .env.
+        # With plain "utf-8" the BOM becomes part of the FIRST key's name
+        # ("U+FEFF TG_API_ID"), so that variable silently goes missing.
         extra="ignore",
     )
 
@@ -35,6 +38,7 @@ class Settings(BaseSettings):
 
     channels_file: Path = MODULE_DIR / "channels.yml"
     keywords_file: Path = MODULE_DIR / "keywords.yml"
+    channel_cache_file: Path = MODULE_DIR / "channel_cache.json"
 
     # channel_rater.py only: how many recent posts to sample per channel,
     # and how long to pause between channels (a separate, lighter-weight
@@ -42,6 +46,23 @@ class Settings(BaseSettings):
     # rating reads history in bulk rather than reacting to live messages).
     rate_sample: int = 50
     rate_channel_delay_seconds: float = 2.0
+
+    # --- Channel resolution / FloodWait policy (see resolver.py) ---
+    # Pause between consecutive ResolveUsername calls. Only applies to
+    # channels the cache couldn't answer for, so on a warm start it never
+    # comes into play at all.
+    resolve_delay_seconds: float = 2.0
+    # How long a cached resolve stays good. A channel's id/access_hash don't
+    # change, so this is long by default; it mainly exists so membership and
+    # renames eventually get re-checked on their own.
+    cache_ttl_days: float = 30.0
+    # If Telegram asks for a longer wait than this, stop resolving for this
+    # run rather than sitting blocked - we keep whatever was resolved and
+    # monitor those channels. We never ignore or shorten the wait itself.
+    max_flood_wait_seconds: float = 300.0
+    # Re-resolve everything, ignoring the cache. Needed after joining new
+    # channels, since a cached "not_joined" is otherwise trusted until TTL.
+    force_resolve: bool = False
 
 
 class ChannelEntry(BaseModel):

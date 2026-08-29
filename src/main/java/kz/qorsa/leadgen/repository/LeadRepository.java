@@ -3,9 +3,11 @@ package kz.qorsa.leadgen.repository;
 import java.util.List;
 import java.util.UUID;
 import kz.qorsa.leadgen.domain.Lead;
+import kz.qorsa.leadgen.domain.LeadSource;
 import kz.qorsa.leadgen.domain.LeadStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,4 +33,15 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
     /** All leads with company fetched - used by the Sheets export, which needs the full set. */
     @Query("select l from Lead l join fetch l.company order by l.score desc")
     List<Lead> findAllWithCompany();
+
+    /**
+     * Deletes every lead belonging to a company from the given source. Any
+     * outreach rows must be gone first (see
+     * {@link OutreachRepository#deleteByCompanySource}) - leads.company_id and
+     * outreach.lead_id are plain NOT NULL foreign keys with no ON DELETE
+     * CASCADE. Written as a subquery because JPQL bulk DELETE cannot join.
+     */
+    @Modifying
+    @Query("delete from Lead l where l.company in (select c from Company c where c.source = :source)")
+    int deleteByCompanySource(@Param("source") LeadSource source);
 }

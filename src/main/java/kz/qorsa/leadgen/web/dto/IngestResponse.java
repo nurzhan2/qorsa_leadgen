@@ -17,15 +17,26 @@ import lombok.Setter;
 @Builder
 public class IngestResponse {
 
-    /** Number of brand-new companies created. */
+    /** Number of brand-new companies created. Counted per batch item. */
     private int created;
 
-    /** Number of candidates that matched an existing company and were merged into it. */
+    /**
+     * Number of candidates that matched an existing company and were merged
+     * into it. Counted per batch item, so {@code created + merged} always
+     * equals the batch size.
+     */
     private int merged;
 
-    /** Total number of leads scored during this batch (one per created/merged company). */
+    /**
+     * Number of DISTINCT leads scored during this batch. Not the same as
+     * {@code created + merged}: several items of one batch can collapse onto a
+     * single lead via dedup, and such a lead is counted once here.
+     */
     private int leadsScored;
 
-    /** How many of those leads came out HOT. */
+    /**
+     * How many of those distinct leads ended the batch HOT - judged on each
+     * lead's FINAL score, after every item that touched it has been merged in.
+     */
     private int hotCount;
 }

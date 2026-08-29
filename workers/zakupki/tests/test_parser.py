@@ -337,3 +337,224 @@ def test_missing_price_block_does_not_crash():
 
     assert details["budget"] is None
     assert details["subject"] == "Что-то"
+
+
+# --- parse_purchase_card(), 223-FZ branch -----------------------------------
+#
+# Fixture copied from the markup of a REAL 223-FZ notice (verified live
+# 2026-08-29, regNumber 32616327624 -
+# zakupki.gov.ru/epz/order/notice/notice223/common-info.html), trimmed to the
+# blocks the parser reads but with their structure and class names left exactly
+# as the site emits them - including:
+#   - label/value as SIBLINGS under a shared .col-9.mr-auto wrapper,
+#   - the law type inline with the purchase method in ONE header string,
+#   - the ИНН grey-label pattern where the LABEL itself also carries
+#     .common-text__value (the trap a parent-scoped lookup falls into),
+#   - a nested .common-text__value inside the organisation-name value,
+#   - .price-block__value, the one class the 44-FZ and 223-FZ pages share.
+
+DETAIL_223_HTML = """
+<html><body>
+<div class="col pr-0 d-flex align-headers-center">
+  <div class="registry-entry__header-top__title">
+      223-ФЗ Конкурс в электронной форме, участниками которого могут быть
+      только субъекты малого и среднего предпринимательства
+  </div>
+</div>
+
+<div class="common-text__caption">Сведения о закупке</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Реестровый номер извещения</div>
+  <div class="common-text__value">32616327624</div>
+</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Наименование закупки</div>
+  <div class="common-text__value">
+      Оказание работ по разработке, адаптации и модернизации программного
+      обеспечения для ЭВМ и программирования баз данных с целью поискового
+      продвижениям сайта ООО "Кристаллдиам"
+  </div>
+</div>
+
+<div class="price-block">
+  <div class="price-block__title">Начальная цена</div>
+  <div class="price-block__value">400 000,00 &#8381;</div>
+</div>
+
+<div class="common-text__caption">Сведения о заказчике</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Наименование организации</div>
+  <div class="common-text__value">
+    <div class="common-text__value common-text__value_no-padding">
+      <a href="/epz/organization/view223/info.html?inn=6731002565&amp;kpp=673101001">
+        ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "КРИСТАЛЛДИАМ"</a>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="col-4 d-flex">
+    <div class="common-text__value common-text__value--gray">ИНН</div>
+    <div class="ml-1 common-text__value">6731002565</div>
+  </div>
+  <div class="col d-flex">
+    <div class="common-text__value common-text__value--gray">КПП</div>
+    <div class="ml-1 common-text__value">673101001</div>
+  </div>
+  <div class="col-4 d-flex">
+    <div class="common-text__value common-text__value--gray">ОГРН</div>
+    <div class="ml-1 common-text__value">1026701429402</div>
+  </div>
+</div>
+
+<div class="common-text__caption">Контактная информация</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Контактное лицо</div>
+  <div class="common-text__value">Тантушян А.М.</div>
+</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Адрес электронной почты</div>
+  <div class="common-text__value">info@kristalldiam.ru</div>
+</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Контактный телефон</div>
+  <div class="common-text__value">84812311237</div>
+</div>
+
+<div class="common-text__caption">Порядок проведения процедуры</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Дата начала срока подачи заявок</div>
+  <div class="common-text__value">27.08.2026 (МСК)</div>
+</div>
+<div class="col-9 mr-auto">
+  <div class="common-text__title">Дата и время окончания срока подачи заявок
+    (по местному времени заказчика)</div>
+  <div class="common-text__value">04.09.2026 12:00 (МСК)</div>
+</div>
+</body></html>
+"""
+
+DETAIL_223_URL = (
+    "https://zakupki.gov.ru/223/purchase/public/purchase/info/common-info.html?regNumber=32616327624"
+)
+
+
+def test_parses_a_full_223_detail_card():
+    details = parse_purchase_card(DETAIL_223_HTML, url=DETAIL_223_URL)
+
+    assert details["law_type"] == "223-ФЗ"
+    assert "разработке" in details["subject"]
+    assert "Кристаллдиам" in details["subject"]
+    assert details["budget"] == 400000.0
+    assert details["deadline"] == "04.09.2026 12:00 (МСК)"
+    assert details["customer_phone"] == "84812311237"
+    assert details["customer_inn"] == "6731002565"
+
+
+def test_223_card_dispatches_on_markup_alone_without_a_url():
+    """The URL is the authoritative discriminator, but parse_purchase_card
+    must still pick the right branch when called with HTML only."""
+    details = parse_purchase_card(DETAIL_223_HTML)
+
+    assert details["law_type"] == "223-ФЗ"
+    assert details["customer_phone"] == "84812311237"
+    assert "разработке" in details["subject"]
+
+
+def test_223_customer_inn_is_the_number_not_the_grey_label():
+    """Regression guard for the actual trap in this template: the "ИНН"
+    LABEL itself also carries .common-text__value, so a parent-scoped
+    lookup returns the string "ИНН" instead of the digits. Must be the
+    number, and must not pick up КПП/ОГРН from the same row."""
+    details = parse_purchase_card(DETAIL_223_HTML, url=DETAIL_223_URL)
+
+    assert details["customer_inn"] == "6731002565"
+    assert details["customer_inn"] != "ИНН"
+    assert details["customer_inn"] not in ("673101001", "1026701429402")
+
+
+def test_223_region_is_none_because_the_template_has_no_region_field():
+    """Verified live on three real 223-FZ notices: there is no "Регион"
+    label anywhere on the page. The nearest thing is "Место нахождения", a
+    full postal address, which mapper.py would feed straight into the
+    lead's `city` - so this stays None deliberately rather than being
+    faked from an address. Documented in README.md."""
+    details = parse_purchase_card(DETAIL_223_HTML, url=DETAIL_223_URL)
+
+    assert details["region"] is None
+
+
+def test_223_law_type_falls_back_to_the_url_when_the_header_is_gone():
+    """If the site restyles the header element away, a /223/ URL still
+    tells us the law type unambiguously - that's the URL namespace, not a
+    guess."""
+    html = """
+    <div class="col-9 mr-auto">
+      <div class="common-text__title">Наименование закупки</div>
+      <div class="common-text__value">Разработка сайта</div>
+    </div>
+    """
+
+    details = parse_purchase_card(html, url=DETAIL_223_URL)
+
+    assert details["law_type"] == "223-ФЗ"
+    assert details["subject"] == "Разработка сайта"
+
+
+def test_223_redirected_notice223_url_is_also_recognized():
+    """A /223/purchase/... link 302-redirects to /epz/order/notice/notice223/...;
+    whichever of the two the caller passes must dispatch the same way."""
+    redirected = "https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber=32616327624"
+
+    details = parse_purchase_card(DETAIL_223_HTML, url=redirected)
+
+    assert details["law_type"] == "223-ФЗ"
+    assert details["customer_inn"] == "6731002565"
+
+
+def test_44_card_is_not_misdetected_as_223():
+    """The 44-FZ branch must keep working now that dispatch exists - a
+    44-FZ page carries none of the 223 template's classes (measured live:
+    .common-text__title is 0 on 44-FZ pages, 29+ on 223-FZ ones)."""
+    details = parse_purchase_card(DETAIL_CARD_HTML)
+
+    assert details["law_type"] == "44-ФЗ"
+    assert "дизайн-концепции" in details["subject"]
+    assert details["budget"] == 8398003.33
+    assert details["region"] == "Москва"
+
+
+def test_44_card_with_an_explicit_url_still_uses_the_44_branch():
+    details = parse_purchase_card(
+        DETAIL_CARD_HTML,
+        url="https://zakupki.gov.ru/epz/order/notice/ea20/view/common-info.html?regNumber=0132300001726000686",
+    )
+
+    assert details["law_type"] == "44-ФЗ"
+    assert details["customer_phone"] == "7-495-9579977"
+
+
+def test_223_branch_returns_the_same_seven_keys_as_the_44_branch():
+    """Callers (mapper.py) must never have to know which branch ran."""
+    from_223 = parse_purchase_card(DETAIL_223_HTML, url=DETAIL_223_URL)
+    from_44 = parse_purchase_card(DETAIL_CARD_HTML)
+
+    assert set(from_223) == set(from_44)
+
+
+def test_223_card_with_missing_blocks_does_not_crash():
+    html = """
+    <div class="registry-entry__header-top__title">223-ФЗ Запрос котировок</div>
+    <div class="col-9 mr-auto">
+      <div class="common-text__title">Наименование закупки</div>
+      <div class="common-text__value">Только предмет и больше ничего</div>
+    </div>
+    """
+
+    details = parse_purchase_card(html, url=DETAIL_223_URL)
+
+    assert details["subject"] == "Только предмет и больше ничего"
+    assert details["law_type"] == "223-ФЗ"
+    assert details["budget"] is None
+    assert details["deadline"] is None
+    assert details["customer_phone"] is None
+    assert details["customer_inn"] is None

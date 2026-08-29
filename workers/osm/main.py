@@ -8,9 +8,11 @@ import sys
 import httpx
 import structlog
 
+from .chains import ChainFilter
 from .config import Settings, load_categories, load_cities
 from .core_client import CoreClient
 from .overpass_client import OverpassClient
+from .progress import load_progress
 from .runner import OsmRunner
 
 
@@ -35,13 +37,22 @@ async def _run() -> None:
 
     cities = load_cities(settings.cities_file).cities
     categories = load_categories(settings.categories_file).categories
+    progress = load_progress(settings.progress_file)
+    chain_filter = ChainFilter(settings.stoplist)
+
     log.info(
         "osm.starting",
         core_url=settings.core_url,
         cities=len(cities),
         categories=len(categories),
+        grid=len(cities) * len(categories),
+        combos_per_run=settings.combos_per_run,
+        already_done=progress.done_count,
         target_per_day=settings.target_per_day,
         run_once=settings.run_once,
+        endpoints=len(settings.endpoints),
+        chain_stoplist=len(chain_filter),
+        request_delay_seconds=settings.request_delay_seconds,
     )
 
     # Generous overall timeout - the per-request timeout is set explicitly
@@ -53,15 +64,19 @@ async def _run() -> None:
             request_delay_seconds=settings.request_delay_seconds,
             request_timeout_seconds=settings.request_timeout_seconds,
             page_size=settings.page_size,
+            endpoints=settings.endpoints,
         )
         core = CoreClient(settings.core_url)
-        runner = OsmRunner(settings, cities, categories, client, core)
+        runner = OsmRunner(settings, cities, categories, client, core, progress, chain_filter)
         try:
             while True:
                 summary = await runner.run_once()
                 log.info("osm.run_finished", **summary)
                 if settings.run_once:
                     break
+                # RESET_PROGRESS applies to the first pass only - otherwise a
+                # long-running loop would wipe its own checkpoint every cycle.
+                settings.reset_progress = False
                 log.info("osm.sleeping_until_next_run", hours=settings.loop_interval_hours)
                 await asyncio.sleep(settings.loop_interval_hours * 3600)
         finally:

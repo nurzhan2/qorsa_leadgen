@@ -14,10 +14,12 @@ import structlog
 from telethon import TelegramClient, events
 from telethon.errors import FloodWaitError
 
+from .channel_cache import load_cache
 from .config import ChannelsConfig, KeywordsConfig, Settings
 from .core_client import CoreClient, RawCompanyRequest
 from .extractor import extract_contact
 from .matcher import Matcher
+from .resolver import ChannelResolver
 
 log = structlog.get_logger(__name__)
 
@@ -46,12 +48,31 @@ class TelegramOrderMonitor:
         await self._client.start()
         log.info("monitor.starting", configured_channels=len(self._channels_config.channels))
 
-        entities = await self._resolve_channels()
-        if not entities:
-            log.warning("monitor.no_channels_resolved", hint="check channels.yml")
+        outcome = await self._resolve_channels()
+        if not outcome.channels:
+            log.warning(
+                "monitor.no_channels_resolved",
+                hint="check channels.yml, or run: python -m workers.telegram_monitor.channel_cache --report",
+            )
 
-        self._client.add_event_handler(self._on_message, events.NewMessage(chats=entities))
-        log.info("monitor.listening", resolved_channels=len(entities))
+        # Marked peer ids, not entities: Telethon matches a negative id
+        # verbatim when building the event filter, so nothing here triggers a
+        # resolve. Passing entity objects would send us back to square one.
+        self._client.add_event_handler(
+            self._on_message, events.NewMessage(chats=outcome.peer_ids))
+
+        print(outcome.summary_line())
+        log.info(
+            "monitor.listening",
+            monitored=len(outcome.channels),
+            from_cache=outcome.from_cache,
+            resolved_now=outcome.resolved_now,
+            skipped_not_joined=outcome.not_joined,
+            skipped_not_found=outcome.not_found,
+        )
+        if outcome.aborted_reason:
+            log.warning("monitor.partial_channel_set", reason=outcome.aborted_reason)
+
         await self._client.run_until_disconnected()
 
     async def close(self) -> None:
@@ -59,22 +80,12 @@ class TelegramOrderMonitor:
         if self._client.is_connected():
             await self._client.disconnect()
 
-    async def _resolve_channels(self) -> list:
-        entities = []
-        for entry in self._channels_config.channels:
-            target = entry.target
-            try:
-                entities.append(await self._client.get_entity(target))
-            except FloodWaitError as exc:
-                log.warning("monitor.flood_wait_on_resolve", seconds=exc.seconds, target=target)
-                await asyncio.sleep(exc.seconds)
-                try:
-                    entities.append(await self._client.get_entity(target))
-                except Exception as retry_exc:  # noqa: BLE001 - one bad channel shouldn't stop the rest
-                    log.error("monitor.channel_resolve_failed", target=target, error=str(retry_exc))
-            except Exception as exc:  # noqa: BLE001
-                log.error("monitor.channel_resolve_failed", target=target, error=str(exc))
-        return entities
+    async def _resolve_channels(self):
+        """Cache-first: with a warm channel_cache.json this makes no
+        ResolveUsername calls at all. See resolver.py for the full policy."""
+        cache = load_cache(self._settings.channel_cache_file)
+        resolver = ChannelResolver(self._client, self._settings, cache)
+        return await resolver.resolve(self._channels_config.channels)
 
     async def _on_message(self, event: events.NewMessage.Event) -> None:
         text = event.raw_text or ""

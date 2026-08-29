@@ -41,3 +41,13 @@ credentials/*.json
 
 # Generated report, not source (workers/telegram_monitor/channel_rater.py)
 workers/telegram_monitor/channel_report.csv
+
+# Resolved-channel cache - machine-local state (peer ids/access hashes tied to
+# one account's session), rebuilt on demand. Never commit.
+workers/telegram_monitor/channel_cache.json
+workers/telegram_monitor/channel_cache.json.tmp
+
+# OSM crawl checkpoint - per-machine run state (which city/category pairs are
+# done), not source. Deleting it just restarts the sweep.
+workers/osm/osm_progress.json
+workers/osm/osm_progress.json.tmp

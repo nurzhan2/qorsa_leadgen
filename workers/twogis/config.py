@@ -20,7 +20,10 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=str(MODULE_DIR / ".env"),
-        env_file_encoding="utf-8",
+        env_file_encoding="utf-8-sig",  # -sig: tolerate a UTF-8 BOM, which
+        # Notepad/PowerShell on Windows silently prepend when saving a .env.
+        # With plain "utf-8" the BOM becomes part of the FIRST key's name
+        # ("U+FEFF TG_API_ID"), so that variable silently goes missing.
         extra="ignore",
     )
 

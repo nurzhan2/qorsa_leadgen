@@ -110,8 +110,12 @@ A short, honest log — these are the kind of real-world issues the project ran 
 
 ```bash
 docker compose up -d                 # PostgreSQL
-mvn spring-boot:run                  # starts the core on :8080
+mvn spring-boot:run                  # starts the core on :8081
 ```
+
+The core listens on **8081** by default (8080 is commonly taken by Apache).
+Every worker's `CORE_URL` default matches; override both with `SERVER_PORT`
+and the worker's `CORE_URL` if you need a different one.
 
 **A worker** (example — OpenStreetMap, no API key needed):
 

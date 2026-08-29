@@ -2,15 +2,92 @@
 # (latitude/longitude degrees) - this is what Overpass QL's bbox filter
 # takes directly, e.g. node["amenity"="cafe"](55.55,37.35,55.95,37.85);
 #
-# These are approximate rectangular boxes covering each city's built-up
-# area - not exact administrative borders, so they may include a bit of
-# the surrounding suburbs or clip a far-flung district. Good enough for
-# lead sourcing; refine with a tool like bboxfinder.com or
-# nominatim.openstreetmap.org if you need tighter bounds for a city.
+# 30 of Russia's largest cities: every million-plus city plus major regional
+# centres, roughly in population order.
+#
+# HOW THESE WERE PRODUCED (not hand-typed - that's where lat/lon swaps and
+# typos come from): each box is generated from the city centre plus a radius,
+# with the longitude span scaled by 1/cos(latitude) so the box stays roughly
+# square on the ground rather than getting stretched in the east-west
+# direction at northern latitudes. Every box is then checked for
+# south < north, west < east, latitude inside Russia's real range (41..70),
+# longitude inside Russia's real range (19..180), and the city centre
+# actually falling inside its own box. config.py re-validates all of this at
+# load time, so a bad edit fails loudly instead of silently returning
+# nothing.
+#
+# VERIFIED LIVE against overpass-api.de: the Moscow box returns 6233 cafes
+# and the Vladivostok box 349 - the latter being the important one, since a
+# swapped lat/lon would put 131.9 in the latitude slot and return nothing at
+# all for every eastern city.
+#
+# These are approximate rectangles over each city's built-up area, not exact
+# administrative borders, so they may include some suburbs or clip an outlying
+# district. That's fine for lead sourcing. Refine with bboxfinder.com or
+# nominatim.openstreetmap.org if you need tighter bounds.
+#
+# Sizes are deliberately not uniform - Moscow gets ~50x50 km, a 500k-person
+# regional centre ~20x20 km. A box much larger than the city wastes Overpass
+# time on empty space; one much smaller misses whole districts.
 
 cities:
   - name: "Москва"
-    bbox: [55.55, 37.35, 55.95, 37.85]
+    bbox: [55.5312, 37.2185, 55.9804, 38.0167]   # ~50x50 km
   - name: "Санкт-Петербург"
-    bbox: [59.80, 30.10, 60.05, 30.55]
-
+    bbox: [59.7367, 29.9406, 60.1319, 30.7296]   # ~44x44 km
+  - name: "Новосибирск"
+    bbox: [54.8467, 82.6537, 55.1701, 83.2177]   # ~36x36 km
+  - name: "Екатеринбург"
+    bbox: [56.6952, 60.3429, 56.9826, 60.8685]   # ~32x32 km
+  - name: "Казань"
+    bbox: [55.6616, 48.8691, 55.9310, 49.3485]   # ~30x30 km
+  - name: "Нижний Новгород"
+    bbox: [56.1832, 43.7467, 56.4706, 44.2651]   # ~32x32 km
+  - name: "Челябинск"
+    bbox: [55.0297, 61.2009, 55.2991, 61.6727]   # ~30x30 km
+  - name: "Красноярск"
+    bbox: [55.8895, 92.6682, 56.1411, 93.1182]   # ~28x28 km
+  - name: "Самара"
+    bbox: [53.0612, 49.8753, 53.3306, 50.3251]   # ~30x30 km
+  - name: "Уфа"
+    bbox: [54.6041, 55.7387, 54.8735, 56.2055]   # ~30x30 km
+  - name: "Ростов-на-Дону"
+    bbox: [47.1099, 39.5163, 47.3615, 39.8867]   # ~28x28 km
+  - name: "Омск"
+    bbox: [54.8538, 73.0893, 55.1232, 73.5591]   # ~30x30 km
+  - name: "Краснодар"
+    bbox: [44.9097, 38.7973, 45.1613, 39.1533]   # ~28x28 km
+  - name: "Воронеж"
+    bbox: [51.5552, 38.9960, 51.7888, 39.3726]   # ~26x26 km
+  - name: "Пермь"
+    bbox: [57.8758, 55.9958, 58.1452, 56.5046]   # ~30x30 km
+  - name: "Волгоград"
+    bbox: [48.5463, 44.2683, 48.8697, 44.7583]   # ~36x36 km (город вытянут вдоль Волги)
+  - name: "Саратов"
+    bbox: [51.4258, 45.8610, 51.6414, 46.2076]   # ~24x24 km
+  - name: "Тюмень"
+    bbox: [57.0444, 65.3285, 57.2600, 65.7259]   # ~24x24 km
+  - name: "Тольятти"
+    bbox: [53.4225, 49.1647, 53.6381, 49.5275]   # ~24x24 km
+  - name: "Ижевск"
+    bbox: [56.7539, 53.0308, 56.9515, 53.3922]   # ~22x22 km
+  - name: "Барнаул"
+    bbox: [53.2560, 83.6042, 53.4536, 83.9354]   # ~22x22 km
+  - name: "Ульяновск"
+    bbox: [54.2154, 48.2337, 54.4130, 48.5725]   # ~22x22 km
+  - name: "Иркутск"
+    bbox: [52.1882, 104.1435, 52.3858, 104.4665]   # ~22x22 km
+  - name: "Хабаровск"
+    bbox: [48.3814, 134.9228, 48.5790, 135.2210]   # ~22x22 km
+  - name: "Владивосток"
+    bbox: [43.0167, 131.7501, 43.2143, 132.0209]   # ~22x22 km (проверен вживую)
+  - name: "Ярославль"
+    bbox: [57.5363, 39.7167, 57.7159, 40.0523]   # ~20x20 km
+  - name: "Махачкала"
+    bbox: [42.8951, 47.3819, 43.0747, 47.6275]   # ~20x20 km
+  - name: "Томск"
+    bbox: [56.3948, 84.7855, 56.5744, 85.1109]   # ~20x20 km
+  - name: "Оренбург"
+    bbox: [51.6829, 54.9536, 51.8625, 55.2440]   # ~20x20 km
+  - name: "Кемерово"
+    bbox: [55.2649, 85.9293, 55.4445, 86.2453]   # ~20x20 km

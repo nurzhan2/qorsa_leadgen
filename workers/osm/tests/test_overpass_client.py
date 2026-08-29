@@ -6,6 +6,12 @@ import pytest
 
 from workers.osm.overpass_client import OverpassClient, build_query, parse_elements
 
+# Production backoff is 5..120s over 5 attempts. These tests assert WHICH
+# requests are made, not how long the client waits between them, so they run
+# with the waits collapsed - otherwise the two retry cases alone spend 20
+# seconds of real time asleep.
+FAST_RETRY = {"retry_attempts": 5, "retry_base_seconds": 0.001, "retry_max_seconds": 0.002}
+
 # --- build_query() / parse_elements(): pure, no network ----------------
 
 
@@ -88,7 +94,8 @@ async def test_retries_past_429_then_succeeds():
 
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
-        client = OverpassClient(http_client, user_agent="test-agent", request_delay_seconds=0, page_size=10)
+        client = OverpassClient(http_client, user_agent="test-agent", request_delay_seconds=0,
+                                page_size=10, **FAST_RETRY)
         elements = await client.fetch_elements((55.5, 37.3, 55.9, 37.8), "amenity", "cafe")
 
     assert attempts["n"] == 3
@@ -107,7 +114,8 @@ async def test_retries_past_504_gateway_timeout():
 
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
-        client = OverpassClient(http_client, user_agent="test-agent", request_delay_seconds=0, page_size=10)
+        client = OverpassClient(http_client, user_agent="test-agent", request_delay_seconds=0,
+                                page_size=10, **FAST_RETRY)
         elements = await client.fetch_elements((55.5, 37.3, 55.9, 37.8), "amenity", "cafe")
 
     assert attempts["n"] == 2
@@ -124,7 +132,8 @@ async def test_does_not_retry_on_non_retryable_4xx():
 
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as http_client:
-        client = OverpassClient(http_client, user_agent="test-agent", request_delay_seconds=0, page_size=10)
+        client = OverpassClient(http_client, user_agent="test-agent", request_delay_seconds=0,
+                                page_size=10, **FAST_RETRY)
         elements = await client.fetch_elements((55.5, 37.3, 55.9, 37.8), "amenity", "cafe")
 
     assert attempts["n"] == 1

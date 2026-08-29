@@ -1,9 +1,11 @@
 package kz.qorsa.leadgen.service;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import kz.qorsa.leadgen.config.ScoringProperties;
 import kz.qorsa.leadgen.domain.Company;
 import kz.qorsa.leadgen.domain.Lead;
@@ -52,8 +54,17 @@ public class IngestService {
     public IngestResponse ingest(List<RawCompanyRequest> batch) {
         int created = 0;
         int merged = 0;
-        int leadsScored = 0;
-        int hotCount = 0;
+
+        // Keyed by lead id so a lead touched by several items of the same batch
+        // (the whole point of dedup: three sightings of one business collapse
+        // into one lead) is counted ONCE, carrying the status from its LAST
+        // scoring pass - the only one that reflects the fully enriched company.
+        //
+        // Counting per batch item instead, as this used to, inflated both
+        // numbers whenever a batch contained duplicates: a worker sending three
+        // sightings of one HOT business reported leadsScored=3, hotCount=3 for
+        // what is actually a single hot lead.
+        Map<UUID, LeadStatus> statusByLead = new LinkedHashMap<>();
 
         for (RawCompanyRequest raw : batch) {
             Company candidate = toCandidate(raw);
@@ -71,16 +82,17 @@ public class IngestService {
 
             ScoringService.ScoreResult result = scoringService.score(saved);
             Lead lead = upsertLead(saved, result);
-            leadsScored++;
-            if (lead.getStatus() == LeadStatus.HOT) {
-                hotCount++;
-            }
+            statusByLead.put(lead.getId(), lead.getStatus());
         }
+
+        int hotCount = (int) statusByLead.values().stream()
+                .filter(status -> status == LeadStatus.HOT)
+                .count();
 
         return IngestResponse.builder()
                 .created(created)
                 .merged(merged)
-                .leadsScored(leadsScored)
+                .leadsScored(statusByLead.size())
                 .hotCount(hotCount)
                 .build();
     }
