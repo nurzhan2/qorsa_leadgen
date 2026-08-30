@@ -1,0 +1,45 @@
+# HH regions to search, one query per (keyword x area) pair.
+#
+# `id` values come from https://api.hh.ru/areas and were FETCHED LIVE while
+# building this file (that endpoint is reachable without a token, unlike
+# /vacancies - see README.md). All 15 resolved against the live tree; the
+# parent region is noted for orientation.
+#
+# HH area ids are strings in the API. `id: 1` in YAML parses as an int, so
+# config.py coerces to str - but quoting them here keeps intent obvious.
+#
+# To add a city: GET https://api.hh.ru/areas, find the city node, use its
+# id. Note that a REGION id (e.g. "1620" Республика Марий Эл) also works and
+# widens the search to the whole region.
+
+areas:
+  - name: "Москва"
+    id: "1"            # Россия
+  - name: "Санкт-Петербург"
+    id: "2"            # Россия
+  - name: "Екатеринбург"
+    id: "3"            # Свердловская область
+  - name: "Новосибирск"
+    id: "4"            # Новосибирская область
+  - name: "Воронеж"
+    id: "26"           # Воронежская область
+  - name: "Краснодар"
+    id: "53"           # Краснодарский край
+  - name: "Красноярск"
+    id: "54"           # Красноярский край
+  - name: "Нижний Новгород"
+    id: "66"           # Нижегородская область
+  - name: "Омск"
+    id: "68"           # Омская область
+  - name: "Пермь"
+    id: "72"           # Пермский край
+  - name: "Ростов-на-Дону"
+    id: "76"           # Ростовская область
+  - name: "Самара"
+    id: "78"           # Самарская область
+  - name: "Казань"
+    id: "88"           # Республика Татарстан
+  - name: "Уфа"
+    id: "99"           # Республика Башкортостан
+  - name: "Челябинск"
+    id: "104"          # Челябинская область

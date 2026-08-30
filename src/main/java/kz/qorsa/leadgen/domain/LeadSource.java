@@ -18,7 +18,11 @@ public enum LeadSource {
     ZAKUPKI,
     NEW_DOMAIN,
     YANDEX_REVIEW,
+    /** Generic/other job-board vacancies. */
     VACANCY,
+    /** hh.ru vacancies specifically (workers/hh) - kept separate from VACANCY
+     *  because its leads carry the stale-vacancy signals in raw. */
+    HH,
     AVITO_JOB,
     DEMO,
     OTHER

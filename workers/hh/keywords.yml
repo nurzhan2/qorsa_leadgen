@@ -1,0 +1,44 @@
+# Search phrases sent to HH as the `text` parameter, one query per
+# (keyword x area) pair. Plain list - add/remove freely, no code changes.
+#
+# The logic behind the selection: a company hiring one of these roles has a
+# budget approved and a need right now. If the vacancy has been open for
+# STALE_DAYS+ they have been unable to fill it - which is precisely when
+# outsourcing starts to look attractive. See README.md.
+#
+# HH supports a query language in this field (https://hh.ru/article/1175):
+# quotes for exact phrases, OR / NOT, etc. Plain phrases are used here
+# because they behave predictably across all 15 regions.
+
+keywords:
+  # --- Веб-разработка ---
+  - "веб-разработчик"
+  - "frontend разработчик"
+  - "backend разработчик"
+  - "python разработчик"
+  - "разработчик сайтов"
+  - "верстальщик"
+  - "программист 1С"
+  - "разработчик telegram ботов"
+  - "автоматизация процессов"
+
+  # --- Дизайн цифровой ---
+  - "веб-дизайнер"
+  - "UX/UI дизайнер"
+
+  # --- Маркетинг ---
+  - "интернет-маркетолог"
+  - "SMM-менеджер"
+  - "таргетолог"
+  - "контент-менеджер сайта"
+
+  # --- Дизайн интерьера, архитектура, визуализация ---
+  # Компании этой ниши сами продают дизайн, но собственный сайт/портфолио у
+  # них часто слабый или отсутствует - а он им нужен как воздух.
+  - "дизайнер интерьера"
+  - "ландшафтный дизайнер"
+  - "3D-визуализатор"
+  - "визуализатор интерьеров"
+  - "архитектор"
+  - "проектировщик"
+  - "декоратор"

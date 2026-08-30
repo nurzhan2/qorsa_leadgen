@@ -340,6 +340,7 @@ public class SheetsExporter {
             case NEW_DOMAIN -> "Новые домены";
             case YANDEX_REVIEW -> "Яндекс Отзывы";
             case VACANCY -> "Вакансии";
+            case HH -> "hh.ru";
             case AVITO_JOB -> "Avito";
             case DEMO -> "Демо";
             case OTHER -> "Прочее";
