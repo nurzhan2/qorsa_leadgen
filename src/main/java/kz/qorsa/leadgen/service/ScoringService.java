@@ -15,10 +15,10 @@ import org.springframework.stereotype.Service;
  * {@link ScoringProperties} (application.yml, "leadgen.scoring") so tuning
  * the model never requires a code change or redeploy of rule logic.
  *
- * <p>Two rules are deliberately reserved as no-ops for now: pagespeed and
- * auditFails, which depend on a future site-audit worker that doesn't exist
- * yet. Their weights/thresholds already live in {@link ScoringProperties} so
- * wiring them in later is a one-line change here, not a schema change.
+ * <p>Two rules read signals that only workers/site_audit produces:
+ * pagespeed and auditFails. They stay silent until that worker has measured
+ * the company - an unmeasured site is not the same as a good one, so a
+ * missing value fires nothing rather than defaulting to zero.
  */
 @Service
 public class ScoringService {
@@ -91,12 +91,48 @@ public class ScoringService {
             reasons.add("8-800 (вероятно сеть/колл-центр)");
         }
 
-        // --- Future site-audit hooks (not evaluated yet, no raw data source exists) ---
-        // pagespeed < properties.getPagespeedThreshold() -> + properties.getPagespeedWeight()
-        // auditFails > properties.getAuditFailsThreshold() -> + properties.getAuditFailsWeight()
+        // Site-audit signals, written into raw by workers/site_audit. Both are
+        // deliberately one-sided: a slow or broken site raises the score, a
+        // good one never lowers it. A company with a fast, clean site simply
+        // isn't a lead for a studio that rebuilds sites - it scores zero here,
+        // which is the honest answer, not a penalty.
+        Integer pagespeed = rawIntValue(company, "pagespeed");
+        if (pagespeed != null && pagespeed < properties.getPagespeedThreshold()) {
+            score += properties.getPagespeedWeight();
+            reasons.add("медленный сайт (PageSpeed " + pagespeed + ")");
+        }
+
+        Integer auditFails = rawIntValue(company, "auditFails");
+        if (auditFails != null && auditFails > properties.getAuditFailsThreshold()) {
+            score += properties.getAuditFailsWeight();
+            reasons.add("сайт проваливает " + auditFails + " проверок");
+        }
 
         String reason = String.join("; ", reasons);
         return new ScoreResult(score, reason);
+    }
+
+    /**
+     * Reads a raw value that should be a whole number. Returns null when the
+     * key is absent or unparseable - "we never measured this" and "we measured
+     * zero" are different things, and only the second may fire a rule.
+     */
+    private static Integer rawIntValue(Company company, String key) {
+        if (company.getRaw() == null) {
+            return null;
+        }
+        Object value = company.getRaw().get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.valueOf(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static String rawStringValue(Company company, String key) {

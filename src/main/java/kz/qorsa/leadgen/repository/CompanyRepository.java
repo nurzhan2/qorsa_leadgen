@@ -43,6 +43,26 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     List<Company> findPendingEnrichment(@Param("limit") int limit);
 
     /**
+     * Companies worth a site-audit pass (workers/site_audit): they have a
+     * domain, and no audit has been attempted yet. {@code raw.audit_attempted}
+     * is written after EVERY attempt - including one where the site was
+     * unreachable - so a dead domain is not re-measured on every run.
+     *
+     * <p>Unlike enrichment, this deliberately does NOT require missing
+     * contacts: a company with a full contact card and a broken site is
+     * exactly the lead worth finding. Ordered the same way, hottest first.
+     */
+    @Query(value = """
+            select c.* from companies c
+            where c.domain is not null and btrim(c.domain) <> ''
+              and coalesce(c.raw ->> 'audit_attempted', 'false') <> 'true'
+            order by (select max(l.score) from leads l where l.company_id = c.id) desc nulls last,
+                     c.created_at asc
+            limit :limit
+            """, nativeQuery = true)
+    List<Company> findPendingAudit(@Param("limit") int limit);
+
+    /**
      * Deletes every company from the given source. Dependent leads (and their
      * outreach rows) must be gone first - see
      * {@link LeadRepository#deleteByCompanySource}.

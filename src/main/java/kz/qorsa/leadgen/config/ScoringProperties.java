@@ -44,17 +44,23 @@ public class ScoringProperties {
     /** Score threshold (inclusive) at which a lead becomes QUALIFIED. */
     private int qualifiedThreshold = 40;
 
-    // --- Hooks reserved for the future site-audit worker. Not applied yet. ---
+    // --- Site-audit signals, written into raw by workers/site_audit. ---
 
-    /** Future: points added when PageSpeed score is below pagespeedThreshold. */
+    /** Points added when the PageSpeed score is below pagespeedThreshold. */
     private int pagespeedWeight = 30;
 
-    /** Future: PageSpeed score below which the pagespeedWeight hook fires. */
+    /** PageSpeed score below which pagespeedWeight fires. Google paints below-50 red. */
     private int pagespeedThreshold = 50;
 
-    /** Future: points added when auditFails exceeds auditFailsThreshold. */
+    /** Points added when the failed-check count exceeds auditFailsThreshold. */
     private int auditFailsWeight = 20;
 
-    /** Future: audit-fail count above which the auditFailsWeight hook fires. */
-    private int auditFailsThreshold = 10;
+    /**
+     * Failed-check count above which auditFailsWeight fires. Calibrated
+     * against a live run: real small-business sites score 1-3 failures out of
+     * the ~15 checks the local probe runs, so the original value of 10 - meant
+     * for a full Lighthouse audit list - could never have fired. Above 2 means
+     * three independent problems at once.
+     */
+    private int auditFailsThreshold = 2;
 }

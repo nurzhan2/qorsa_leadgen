@@ -31,6 +31,10 @@ class ScoringServiceTest {
         properties.setTollFreeOnlyPenalty(10);
         properties.setHotThreshold(70);
         properties.setQualifiedThreshold(40);
+        properties.setPagespeedWeight(30);
+        properties.setPagespeedThreshold(50);
+        properties.setAuditFailsWeight(20);
+        properties.setAuditFailsThreshold(3);
         scoringService = new ScoringService(properties);
     }
 
@@ -76,6 +80,95 @@ class ScoringServiceTest {
 
         assertThat(result.score()).isEqualTo(0);
         assertThat(result.reason()).isEmpty();
+    }
+
+    @Test
+    void aSlowSiteAddsPagespeedWeightAndNamesTheScore() {
+        Company company = auditedCompany(Map.of("pagespeed", 23));
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(30);
+        assertThat(result.reason()).isEqualTo("медленный сайт (PageSpeed 23)");
+    }
+
+    @Test
+    void aFastSiteAddsNothingAndIsNotPenalized() {
+        Company company = auditedCompany(Map.of("pagespeed", 91));
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.reason()).isEmpty();
+    }
+
+    @Test
+    void anUnmeasuredSiteIsNotTreatedAsAZeroScore() {
+        // The whole point of the null check: "nobody looked" must not read as
+        // "the slowest site in the database".
+        Company company = auditedCompany(Map.of());
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.reason()).isEmpty();
+    }
+
+    @Test
+    void failedChecksAboveThresholdAddAuditFailsWeight() {
+        Company company = auditedCompany(Map.of("auditFails", 5));
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(20);
+        assertThat(result.reason()).isEqualTo("сайт проваливает 5 проверок");
+    }
+
+    @Test
+    void failedChecksAtOrBelowThresholdAddNothing() {
+        Company company = auditedCompany(Map.of("auditFails", 3));
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(0);
+    }
+
+    @Test
+    void anAuditSignalArrivingAsAStringIsStillRead() {
+        // JSONB round-trips can hand back a string where an int went in.
+        Company company = auditedCompany(Map.of("pagespeed", "17"));
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(30);
+    }
+
+    @Test
+    void anOsmCompanyWithASiteCanNowReachHot() {
+        // The case this whole worker exists for: a real business, contactable,
+        // with a site bad enough to rebuild. Before the audit signals existed
+        // it capped at 25 and was permanently cold.
+        Company company = baseCompany()
+                .hasSite(true)
+                .source(LeadSource.OSM)
+                .phone("+79991234567")
+                .city("Москва")
+                .raw(Map.of(
+                        "primary_phone_type", "MOBILE",
+                        "pagespeed", 31,
+                        "auditFails", 6))
+                .build();
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        // 10 contact+geo + 15 mobile + 30 pagespeed + 20 auditFails
+        assertThat(result.score()).isEqualTo(75);
+        assertThat(result.score()).isGreaterThanOrEqualTo(properties.getHotThreshold());
+    }
+
+    /** An OSM company that owns a site, carrying only the given audit signals. */
+    private Company auditedCompany(Map<String, Object> raw) {
+        return baseCompany().hasSite(true).source(LeadSource.OSM).raw(raw).build();
     }
 
     @Test
