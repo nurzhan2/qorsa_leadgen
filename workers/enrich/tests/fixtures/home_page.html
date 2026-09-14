@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!--
+  Test fixture. Structure modelled on a typical 1C-Bitrix small-business
+  homepage (header menu, header phone, CTA button, footer with socials and a
+  share button). Company, domain and numbers are invented - no real
+  person's or company's data.
+-->
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>ТОО «Ромашка» — упаковка и полиграфия в Алматы</title>
+  <link rel="stylesheet" href="/local/templates/main/css/styles.css">
+  <script src="/local/templates/main/js/jquery.min.js"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    ym(89123456, "init", {clickmap: true, webvisor: true, callback: "+7 (727) 000-00-00"});
+  </script>
+</head>
+<body>
+<header class="header">
+  <a href="/" class="header__logo"><img src="/upload/logo@2x.png" alt="Ромашка"></a>
+  <nav class="menu">
+    <a href="/">Главная</a>
+    <a href="/catalog/">Каталог</a>
+    <a href="/o-kompanii/">О компании</a>
+    <a href="/news/">Новости</a>
+    <a href="/kontakty/">Контакты</a>
+    <a href="#callback" class="js-callback">Обратный звонок</a>
+  </nav>
+  <a class="header__phone" href="tel:+77273551020">+7 (727) 355-10-20</a>
+</header>
+
+<main>
+  <h1>Упаковка для вашего бизнеса</h1>
+  <p>Работаем с 2014 года. Более 1200 клиентов по всему Казахстану.</p>
+  <a class="btn btn--primary" href="/feedback/">Связаться с нами</a>
+  <a href="/news/nasosy/">Всё о насосах для линий розлива</a>
+  <a href="/upload/iblock/price-kontakty.pdf">Прайс-лист и контакты менеджеров (PDF)</a>
+</main>
+
+<footer class="footer">
+  <p>Алматы, пр. Абая, 150, офис 12 · <span class="phone">8 (727) 355-10-20</span></p>
+  <a href="https://vk.com/romashka_kz">ВКонтакте</a>
+  <a href="https://partner-logistics.kz/contacts/">Контакты партнёра по доставке</a>
+  <a href="https://t.me/share/url?url=https%3A%2F%2Fromashka.kz%2F">Поделиться в Telegram</a>
+  <p>© 2014–2026 ТОО «Ромашка»</p>
+</footer>
+</body>
+</html>

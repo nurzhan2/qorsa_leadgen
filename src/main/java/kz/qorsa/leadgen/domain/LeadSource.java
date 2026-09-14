@@ -12,6 +12,9 @@ package kz.qorsa.leadgen.domain;
  */
 public enum LeadSource {
     TELEGRAM_ORDER,
+    /** People who answered a keyword CTA under an Instagram ad reel
+     *  (workers/instagram_cta) - direct intent, they asked for details. */
+    INSTAGRAM_CTA,
     GOOGLE_MAPS,
     TWOGIS,
     OSM,

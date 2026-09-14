@@ -24,7 +24,11 @@ import org.springframework.stereotype.Service;
 public class ScoringService {
 
     private static final Set<LeadSource> DIRECT_INTENT_SOURCES =
-            EnumSet.of(LeadSource.TELEGRAM_ORDER, LeadSource.VACANCY, LeadSource.AVITO_JOB);
+            EnumSet.of(
+                    LeadSource.TELEGRAM_ORDER,
+                    LeadSource.INSTAGRAM_CTA,
+                    LeadSource.VACANCY,
+                    LeadSource.AVITO_JOB);
 
     private final ScoringProperties properties;
 
@@ -56,7 +60,11 @@ public class ScoringService {
             reasons.add("упомянут бюджет");
         }
 
-        if (hasText(company.getPhone()) && hasText(company.getCity())) {
+        // A contact is a phone OR an email: a lead with only an email is still
+        // reachable. Messenger deliberately doesn't count - on a Telegram lead
+        // it's the poster's handle, and on a website it's as often a news
+        // channel as a person.
+        if ((hasText(company.getPhone()) || hasText(company.getEmail())) && hasText(company.getCity())) {
             score += properties.getContactAndGeoWeight();
             reasons.add("есть контакт+гео");
         }

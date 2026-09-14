@@ -51,3 +51,13 @@ workers/telegram_monitor/channel_cache.json.tmp
 # done), not source. Deleting it just restarts the sweep.
 workers/osm/osm_progress.json
 workers/osm/osm_progress.json.tmp
+
+# hh_apply - the apply agent runs under the owner's personal hh account.
+# session/ is the live Chromium profile (cookies) + the recorded login signal;
+# evidence/ and screenshots/ show pages opened under that account; the journal
+# lists which jobs the owner applied to; cover_letter.md is their own text.
+workers/hh_apply/session/
+workers/hh_apply/evidence/
+workers/hh_apply/screenshots/
+workers/hh_apply/*.sqlite3
+workers/hh_apply/cover_letter.md

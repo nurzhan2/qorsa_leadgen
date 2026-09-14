@@ -89,6 +89,8 @@ Most "scrapers" dump raw contacts into a file. This one is designed as a **pipel
 
 Each source is an isolated worker with its own `requirements.txt`, `.env`, tests, and README.
 
+**Contact enrichment** (`workers/enrich`) is not a source but a second pass: for companies that have a domain but no email/phone, it reads the company's own public contact pages — honouring `robots.txt` (RFC 9309) on every request, with an identifying User-Agent, per-site pacing and bounded concurrency — and reports back via `GET /api/v1/companies/pending-enrich` / `PATCH /api/v1/companies/{id}/contacts`. The core only fills empty fields, never overwrites what a source reported, marks every company as attempted exactly once, and re-scores the lead.
+
 ---
 
 ## Engineering problems solved along the way
@@ -154,7 +156,9 @@ qorsa_leadgen/
 │   ├── twogis/            # 2GIS Catalog API
 │   ├── google_places/     # Google Places API
 │   ├── zakupki/           # government tenders (two-level parse)
-│   └── newdomains/        # freshly-registered domains
+│   ├── newdomains/        # freshly-registered domains
+│   ├── enrich/            # contacts from company websites (robots.txt-compliant)
+│   └── hh_apply/          # NOT a lead source: local hh.kz apply agent under the owner's account, never talks to the core
 ├── docker-compose.yml
 └── pom.xml
 ```

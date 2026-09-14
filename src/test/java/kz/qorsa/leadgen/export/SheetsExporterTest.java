@@ -2,6 +2,7 @@ package kz.qorsa.leadgen.export;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 import kz.qorsa.leadgen.domain.Company;
 import kz.qorsa.leadgen.domain.Lead;
@@ -116,5 +117,84 @@ class SheetsExporterTest {
         Lead lead = Lead.builder().company(company).hotReason("упомянут бюджет").build();
 
         assertThat(SheetsExporter.displayReason(lead)).isEqualTo("упомянут бюджет");
+    }
+
+    // --- contact enrichment (workers/enrich) -------------------------------
+
+    @Test
+    void displayReasonSaysWhichContactsCameFromTheSiteAndWhere() {
+        Company company = Company.builder()
+                .name("Ромашка")
+                .source(LeadSource.HH)
+                .raw(Map.of(
+                        "enrich_filled", List.of("email", "phone"),
+                        "enrich_notes", "email с /kontakty/; телефон с главной"))
+                .build();
+        Lead lead = Lead.builder().company(company).hotReason("есть контакт+гео").build();
+
+        assertThat(SheetsExporter.displayReason(lead)).isEqualTo(
+                "есть контакт+гео | Контакт с сайта: email, телефон (email с /kontakty/; телефон с главной)");
+    }
+
+    @Test
+    void anEnrichmentAttemptThatFilledNothingAddsNoNote() {
+        Company company = Company.builder()
+                .name("Ромашка")
+                .source(LeadSource.HH)
+                .raw(Map.of(
+                        "enrich_attempted", true,
+                        "enrich_filled", List.of(),
+                        "enrich_notes", "сайт недоступен: ConnectError"))
+                .build();
+        Lead lead = Lead.builder().company(company).hotReason("прямой интент").build();
+
+        assertThat(SheetsExporter.displayReason(lead)).isEqualTo("прямой интент");
+    }
+
+    @Test
+    void zakupkiSummaryAndEnrichmentNoteAreBothKept() {
+        Company company = Company.builder()
+                .name("Департамент Х")
+                .source(LeadSource.ZAKUPKI)
+                .raw(Map.of("subject", "Разработка сайта", "enrich_filled", List.of("phone")))
+                .build();
+        Lead lead = Lead.builder().company(company).hotReason("упомянут бюджет").build();
+
+        assertThat(SheetsExporter.displayReason(lead)).isEqualTo(
+                "упомянут бюджет | Госзакупка: Разработка сайта | Контакт с сайта: телефон");
+    }
+
+    // --- the Email column ----------------------------------------------------
+
+    @Test
+    void headerHasAnEmailColumnAndRowsFillItFromTheCompany() {
+        Company company = Company.builder()
+                .name("Ромашка")
+                .email("info@romashka.kz")
+                .phone("+77273551020")
+                .city("Алматы")
+                .source(LeadSource.HH)
+                .raw(Map.of("enrich_filled", List.of("email")))
+                .build();
+        Lead lead = Lead.builder().company(company).score(10).hotReason("есть контакт+гео").build();
+
+        List<List<Object>> rows = SheetsExporter.buildRows(List.of(lead));
+
+        int emailColumn = rows.get(0).indexOf("Email");
+        assertThat(emailColumn).isNotNegative();
+        assertThat(rows.get(1).get(emailColumn)).isEqualTo("info@romashka.kz");
+        assertThat(rows.get(1)).hasSameSizeAs(rows.get(0));
+        int reasonColumn = rows.get(0).indexOf("Причина");
+        assertThat((String) rows.get(1).get(reasonColumn)).contains("Контакт с сайта: email");
+    }
+
+    @Test
+    void aCompanyWithoutEmailGetsABlankCellNotNull() {
+        Company company = Company.builder().name("Без почты").source(LeadSource.OSM).build();
+        Lead lead = Lead.builder().company(company).build();
+
+        List<List<Object>> rows = SheetsExporter.buildRows(List.of(lead));
+
+        assertThat(rows.get(1).get(rows.get(0).indexOf("Email"))).isEqualTo("");
     }
 }

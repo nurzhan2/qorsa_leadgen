@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<!--
+  Test fixture. Structure modelled on a typical RU/KZ small-business
+  "Контакты" page (1C-Bitrix/Tilda style): schema.org JSON-LD in <head>,
+  header phones as tel: links, a mailto per department, a manager's
+  WhatsApp, an accountant on a free-mail box, a Telegram channel plus a share
+  button, requisites full of long digit runs, a feedback form with
+  placeholders and a no-reply notice, Sentry and Metrika scripts, and a
+  site-builder support address in the footer - i.e. the junk a real page
+  carries next to the real contacts. Company, domain and numbers are
+  invented - no real person's or company's data.
+-->
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Контакты — ТОО «Ромашка», Алматы</title>
+  <meta name="description" content="Звоните: +7 (727) 355-10-20, пишите: info@romashka.kz">
+  <link rel="stylesheet" href="/bitrix/templates/romashka/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ТОО «Ромашка»",
+    "url": "https://romashka.kz/",
+    "telephone": "+7 (727) 355-10-20",
+    "email": "mailto:info@romashka.kz",
+    "address": {"@type": "PostalAddress", "addressLocality": "Алматы", "streetAddress": "пр. Абая, 150"}
+  }
+  </script>
+  <script>
+    window.Sentry && Sentry.init({dsn: "https://3f2a9c1be4d84b1f9e0c7a6d5b4c3e21@o450123.ingest.sentry.io/5512345"});
+    var ymSettings = {counter: 89123456, webvisor: true, owner: "robot@romashka.kz"};
+  </script>
+</head>
+<body>
+<header class="header">
+  <a class="header__logo" href="/"><img src="/upload/logo@2x.png" srcset="/upload/logo@2x.png 2x, /upload/logo@3x.jpg 3x" alt="Ромашка"></a>
+  <nav class="menu">
+    <a href="/">Главная</a>
+    <a href="/o-kompanii/">О компании</a>
+    <a href="/kontakty/">Контакты</a>
+  </nav>
+  <div class="header__phones">
+    <a href="tel:+77273551020" class="phone">+7 (727) 355-10-20</a>
+    <a href="tel:88005553535" class="phone phone--free">8 800 555–35–35</a>
+  </div>
+</header>
+
+<main>
+  <h1>Контакты</h1>
+  <div class="contacts">
+    <div class="contacts__item"><b>Отдел продаж:</b>
+      <a href="mailto:sales@romashka.kz?subject=%D0%97%D0%B0%D1%8F%D0%B2%D0%BA%D0%B0%20%D1%81%20%D1%81%D0%B0%D0%B9%D1%82%D0%B0">sales@romashka.kz</a></div>
+    <div class="contacts__item"><b>Общие вопросы:</b> <a href="mailto:info@romashka.kz">info@romashka.kz</a></div>
+    <div class="contacts__item"><b>Менеджер Айгерим (WhatsApp):</b> +7 701 234 56 78,
+      <a href="https://wa.me/77012345678?text=%D0%97%D0%B4%D1%80%D0%B0%D0%B2%D1%81%D1%82%D0%B2%D1%83%D0%B9%D1%82%D0%B5">написать в WhatsApp</a></div>
+    <div class="contacts__item"><b>Бухгалтерия:</b> romashka.buh@mail.ru</div>
+    <div class="contacts__item">Наш Telegram-канал: <a href="https://t.me/romashka_kz">@romashka_kz</a> ·
+      <a href="https://t.me/share/url?url=https%3A%2F%2Fromashka.kz%2Fkontakty%2F">Поделиться</a></div>
+    <p class="requisites">ТОО «Ромашка», БИН 180540012345, ИИК KZ12345678901234567890,
+      р/с 40702810900000012345, ОГРН 1234567890123, КБе 17</p>
+    <p>Режим работы: пн–пт 09:00–18:00. Информация обновлена 15.08.2026.</p>
+  </div>
+
+  <form class="feedback" action="/ajax/feedback.php" method="post">
+    <input type="text" name="name" placeholder="Иван Иванов">
+    <input type="email" name="email" placeholder="example@mail.ru">
+    <input type="tel" name="phone" placeholder="+7 (___) ___-__-__">
+    <p class="form-note">Ответ придёт с адреса noreply@romashka.kz — не отвечайте на него.</p>
+  </form>
+
+  <div class="map" data-coords="43.238949, 76.889709"></div>
+</main>
+
+<footer class="footer">
+  <p>© 2014–2026 ТОО «Ромашка». Сайт сделан на конструкторе, техподдержка платформы: support@tilda.cc</p>
+  <p class="footer__legal">Пример заполнения формы для партнёров: user@example.com</p>
+</footer>
+</body>
+</html>

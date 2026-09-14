@@ -21,6 +21,28 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     long countBySource(LeadSource source);
 
     /**
+     * Companies worth a contact-enrichment pass (workers/enrich): they have a
+     * domain to visit, are still missing an email or a phone, and have never
+     * been attempted. {@code raw.enrich_attempted} is written after EVERY
+     * attempt, successful or not (see ContactEnrichmentService), so a site
+     * that yields nothing is not handed out again on every run.
+     *
+     * <p>Native because the flag lives in the JSONB {@code raw} column. Hottest
+     * leads first, so a truncated run spends its requests where a contact is
+     * worth the most; oldest first among equals.
+     */
+    @Query(value = """
+            select c.* from companies c
+            where c.domain is not null and btrim(c.domain) <> ''
+              and (c.email is null or btrim(c.email) = '' or c.phone is null or btrim(c.phone) = '')
+              and coalesce(c.raw ->> 'enrich_attempted', 'false') <> 'true'
+            order by (select max(l.score) from leads l where l.company_id = c.id) desc nulls last,
+                     c.created_at asc
+            limit :limit
+            """, nativeQuery = true)
+    List<Company> findPendingEnrichment(@Param("limit") int limit);
+
+    /**
      * Deletes every company from the given source. Dependent leads (and their
      * outreach rows) must be gone first - see
      * {@link LeadRepository#deleteByCompanySource}.

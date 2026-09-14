@@ -26,7 +26,7 @@ public class ScoringProperties {
     /** Points added when raw.budgetMentioned == true. */
     private int budgetMentionedWeight = 20;
 
-    /** Points added when both phone and city are present. */
+    /** Points added when a contact (phone or email) and a city are both present. */
     private int contactAndGeoWeight = 10;
 
     /** Points added when the primary phone is a mobile number - a direct line to the owner/decision-maker. */

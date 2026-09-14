@@ -103,6 +103,27 @@ class ScoringServiceTest {
     }
 
     @Test
+    void anEmailCountsAsTheContactInContactAndGeo() {
+        Company emailAndCity = baseCompany().hasSite(true).email("info@romashka.kz").city("Almaty").build();
+        Company emailNoCity = baseCompany().hasSite(true).email("info@romashka.kz").city(null).build();
+        Company bothContacts = baseCompany().hasSite(true)
+                .phone("77011112233").email("info@romashka.kz").city("Almaty").build();
+
+        assertThat(scoringService.score(emailAndCity).score()).isEqualTo(10);
+        assertThat(scoringService.score(emailAndCity).reason()).isEqualTo("есть контакт+гео");
+        assertThat(scoringService.score(emailNoCity).score()).isZero();
+        // Phone AND email is still one contact - the rule fires once, not twice.
+        assertThat(scoringService.score(bothContacts).score()).isEqualTo(10);
+    }
+
+    @Test
+    void aMessengerAloneIsNotAContactForContactAndGeo() {
+        Company company = baseCompany().hasSite(true).messenger("https://t.me/romashka").city("Almaty").build();
+
+        assertThat(scoringService.score(company).score()).isZero();
+    }
+
+    @Test
     void mobilePrimaryPhoneTypeAddsWeightAndReason() {
         Company company = baseCompany()
                 .hasSite(true)

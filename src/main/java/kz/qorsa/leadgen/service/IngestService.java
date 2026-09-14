@@ -97,6 +97,18 @@ public class IngestService {
                 .build();
     }
 
+    /**
+     * Re-scores an already-persisted company and refreshes its lead, with the
+     * same rules and status thresholds as {@link #ingest}. For paths that
+     * change a company outside ingest - contact enrichment
+     * ({@link ContactEnrichmentService}) - so a field filled there moves the
+     * score exactly as if the source had reported it.
+     */
+    @Transactional
+    public Lead rescore(Company company) {
+        return upsertLead(company, scoringService.score(company));
+    }
+
     private Company toCandidate(RawCompanyRequest raw) {
         // Split/classify BEFORE building the entity: Company.phone becomes the
         // best single number for a cold call (PhoneUtil.pickPrimary), not

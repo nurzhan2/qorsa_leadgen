@@ -44,14 +44,17 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import kz.qorsa.leadgen.domain.Company;
 import kz.qorsa.leadgen.domain.Lead;
 import kz.qorsa.leadgen.domain.LeadSource;
 import kz.qorsa.leadgen.domain.LeadStatus;
 import kz.qorsa.leadgen.repository.LeadRepository;
+import kz.qorsa.leadgen.service.ContactEnrichmentService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -302,7 +305,8 @@ public class SheetsExporter {
                 .setIndex(0));
     }
 
-    private List<List<Object>> buildRows(List<Lead> leads) {
+    /** Header + one row per lead, in HEADER's column order. Package-visible for tests. */
+    static List<List<Object>> buildRows(List<Lead> leads) {
         List<List<Object>> rows = new ArrayList<>();
         rows.add(HEADER);
         for (Lead lead : leads) {
@@ -333,6 +337,7 @@ public class SheetsExporter {
     static String sourceLabel(LeadSource source) {
         return switch (source) {
             case TELEGRAM_ORDER -> "TG заявки";
+            case INSTAGRAM_CTA -> "Instagram";
             case GOOGLE_MAPS -> "Google Maps";
             case TWOGIS -> "2GIS";
             case OSM -> "OpenStreetMap";
@@ -368,24 +373,38 @@ public class SheetsExporter {
     }
 
     /**
-     * The "Причина" column is normally just the scoring reasons
-     * (lead.getHotReason()) - for госзакупки leads there's no other
-     * column showing the purchase subject/budget, so this appends a
-     * short summary from {@code raw.subject}/{@code raw.budget} when
-     * either is present, keeping the sheet self-explanatory without
-     * adding two more columns that would be blank for every other source.
+     * The "Причина" column: the scoring reasons (lead.getHotReason()) plus,
+     * separated by " | ", short context that has no column of its own -
+     * the purchase subject/budget for госзакупки leads, and where a contact
+     * came from when workers/enrich found it on the company's site. Keeps the
+     * sheet self-explanatory without adding columns that would be blank for
+     * most rows.
      */
     static String displayReason(Lead lead) {
-        String reason = nullToEmpty(lead.getHotReason());
         Company company = lead.getCompany();
-        if (company.getSource() != LeadSource.ZAKUPKI || company.getRaw() == null) {
+        String reason = nullToEmpty(lead.getHotReason());
+        reason = appendSection(reason, zakupkiSummary(company));
+        reason = appendSection(reason, enrichmentSummary(company));
+        return reason;
+    }
+
+    private static String appendSection(String reason, String section) {
+        if (section == null) {
             return reason;
+        }
+        return reason.isEmpty() ? section : reason + " | " + section;
+    }
+
+    /** "Госзакупка: <subject>, бюджет N ₽" from raw.subject/raw.budget - ZAKUPKI leads only, null otherwise. */
+    private static String zakupkiSummary(Company company) {
+        if (company.getSource() != LeadSource.ZAKUPKI || company.getRaw() == null) {
+            return null;
         }
 
         Object subject = company.getRaw().get("subject");
         Object budget = company.getRaw().get("budget");
         if (subject == null && budget == null) {
-            return reason;
+            return null;
         }
 
         StringBuilder summary = new StringBuilder("Госзакупка: ");
@@ -393,8 +412,39 @@ public class SheetsExporter {
         if (budget != null) {
             summary.append(", бюджет ").append(formatBudget(budget)).append(" ₽");
         }
+        return summary.toString();
+    }
 
-        return reason.isEmpty() ? summary.toString() : reason + " | " + summary;
+    /**
+     * "Контакт с сайта: email, телефон (email с /contacts; ...)" when
+     * workers/enrich filled at least one field (raw.enrich_filled, written by
+     * ContactEnrichmentService), so a manager knows the email wasn't reported
+     * by the source itself. Null when enrichment filled nothing - an attempt
+     * that found nothing is not worth a note in the sheet.
+     */
+    static String enrichmentSummary(Company company) {
+        if (company.getRaw() == null) {
+            return null;
+        }
+        Object filled = company.getRaw().get(ContactEnrichmentService.RAW_ENRICH_FILLED);
+        if (!(filled instanceof Collection<?> fields) || fields.isEmpty()) {
+            return null;
+        }
+
+        String labels = fields.stream()
+                .map(field -> switch (String.valueOf(field)) {
+                    case ContactEnrichmentService.FIELD_PHONE -> "телефон";
+                    case ContactEnrichmentService.FIELD_MESSENGER -> "мессенджер";
+                    default -> String.valueOf(field);
+                })
+                .collect(Collectors.joining(", "));
+
+        StringBuilder summary = new StringBuilder("Контакт с сайта: ").append(labels);
+        Object notes = company.getRaw().get(ContactEnrichmentService.RAW_ENRICH_NOTES);
+        if (notes != null && !String.valueOf(notes).isBlank()) {
+            summary.append(" (").append(notes).append(")");
+        }
+        return summary.toString();
     }
 
     /** "8398003.33" (or any Number) -> "8 398 003" - space-grouped, no decimals (a spreadsheet cell doesn't need kopecks). */
