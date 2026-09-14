@@ -230,10 +230,34 @@ pip install -r requirements.txt
 
 ### 4. Fill in `keywords.yml`
 
-A plain list of search phrases, edited without touching code. Ships with:
-"разработка сайта", "создание сайта", "разработка программного
-обеспечения", "внедрение программного обеспечения", "автоматизация
-бизнес-процессов", "разработка чат-бота".
+A plain list of search phrases, edited without touching code. Ships with
+14 keywords in two groups: six IT ones ("разработка сайта", "создание
+сайта", "разработка программного обеспечения", "внедрение программного
+обеспечения", "автоматизация бизнес-процессов", "разработка чат-бота")
+and eight design ones, each with its measured result count in a comment —
+"дизайн-проект" (~11 000), "оформление помещений" (~6 000), "разработка
+дизайн-проекта" (~5 400), "дизайн интерьера" (~1 500), "изготовление и
+монтаж вывески" (~1 100), "разработка фирменного стиля" (973), "3D
+визуализация" (374), "ландшафтное проектирование" (219).
+
+#### Отброшенные ключевики
+
+Three high-volume phrases were measured and deliberately left out:
+"благоустройство территории" (~250 000), "проектные работы" (~490 000)
+and "разработка проектной документации" (~300 000). They read as design
+terms but in the registry they are construction and engineering
+procurement — roadworks, utilities, capital repair — not design work this
+studio can bid on. At those volumes they would also consume the whole
+`TARGET_PER_DAY` budget before any relevant keyword ran.
+
+#### Порядок обхода — page-major
+
+`runner.py` walks **page 1 of every keyword, then page 2 of every
+keyword**, not keyword-by-keyword. With keyword-major order and 14
+keywords × 3 pages × 10 results = 420 potential hits against a
+`TARGET_PER_DAY` of 300, the run ended part-way down the list and the last
+keywords were silently never queried. A keyword that errors out or runs
+dry drops out of the rotation for the rest of the pass.
 
 ### 5. Run it
 

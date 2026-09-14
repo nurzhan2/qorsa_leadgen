@@ -32,24 +32,35 @@ class ZakupkiRunner:
         skipped_duplicates = 0
         skipped_no_customer = 0
         target = self._settings.target_per_day
+        # Page-major order: page 1 of every keyword, then page 2 of every
+        # keyword. Keyword-major order let TARGET_PER_DAY end the run before
+        # the tail of the list was ever queried - 14 keywords x 3 pages x 10
+        # results = 420 > 300, so the last keywords silently never ran.
+        # A keyword that runs dry (or errors out) drops out of the rotation.
+        exhausted: set[str] = set()
 
-        for keyword in self._keywords:
-            if sent >= target:
+        for page in range(1, self._settings.max_pages_per_keyword + 1):
+            if sent >= target or len(exhausted) == len(self._keywords):
                 break
 
-            for page in range(1, self._settings.max_pages_per_keyword + 1):
+            for keyword in self._keywords:
                 if sent >= target:
                     break
+                if keyword in exhausted:
+                    continue
 
                 try:
                     html = await self._client.fetch_search_page(keyword, page)
                 except ZakupkiClientError:
                     log.error("zakupki.giving_up_on_keyword", keyword=keyword, page=page)
-                    break
+                    exhausted.add(keyword)
+                    continue
 
                 purchases = parse_search_html(html)
                 if not purchases:
-                    break  # no more results (or the page format changed - see README)
+                    # no more results (or the page format changed - see README)
+                    exhausted.add(keyword)
+                    continue
 
                 for purchase in purchases:
                     reg_number = purchase.get("reg_number")
@@ -88,7 +99,7 @@ class ZakupkiRunner:
                 )
 
                 if len(purchases) < self._settings.results_per_page:
-                    break  # last page for this keyword
+                    exhausted.add(keyword)  # last page for this keyword
 
         await self._send(batch)
         return {

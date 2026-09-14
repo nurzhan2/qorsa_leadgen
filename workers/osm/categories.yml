@@ -238,6 +238,20 @@ categories:
     key: "shop"
     value: "travel_agency"
 
+  # --- Проверено живыми запросами Overpass (именованные, московский bbox) ---
+  - name: "Компании (офисы)"
+    key: "office"
+    value: "company"         # 1890 именованных - самая объёмная категория файла
+  - name: "Спортивные центры"
+    key: "leisure"
+    value: "sports_centre"   # 751
+  - name: "Пабы"
+    key: "amenity"
+    value: "pub"             # 310
+  - name: "Event-площадки"
+    key: "amenity"
+    value: "events_venue"    # 89
+
 # ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ
 #
 # Все теги ниже РЕАЛЬНЫ и есть в вики — отброшены не за это, а по живому
@@ -258,6 +272,16 @@ categories:
 #                                                        (это сельхоз-полигоны, не бизнес)
 #   сельхозтовары        shop=agrarian              7
 #   садовая мебель       shop=garden_furniture      0
+#
+# Третья волна (гостиницы / досуг):
+#   мотели               tourism=motel              5
+#   шале                 tourism=chalet             7
+#
+# НЕ ПРОВЕРЕНЫ — Overpass отдавал 429/504 на момент правки. Проверять тем же
+# способом (out count, только именованные, московский bbox, паузы 10-15 с,
+# ротация зеркал) и добавлять ТОЛЬКО при реальном объёме:
+#   tourism=hostel, amenity=conference_centre, shop=wedding, amenity=nightclub,
+#   amenity=bar, amenity=childcare, shop=mall, office=it
 #
 # ОТДЕЛЬНО — БРИГАДЫ ОТДЕЛОЧНИКОВ. В российском OSM их практически нет:
 #   craft=painter     0     craft=roofer      0     craft=joiner   0

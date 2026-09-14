@@ -1,10 +1,32 @@
 # Search keywords run against zakupki.gov.ru's public search, one search
 # pass per keyword. Add/remove freely - no code changes needed.
+#
+# Counts in the comments are live result totals measured against
+# zakupki.gov.ru, not estimates. The runner is page-major (runner.py):
+# page 1 of every keyword first, so growing this list never starves the
+# tail of it when TARGET_PER_DAY cuts the run short.
+#
+# Deliberately NOT included - see README "Отброшенные ключевики":
+#   "благоустройство территории"        ~250 000
+#   "проектные работы"                  ~490 000
+#   "разработка проектной документации" ~300 000
+# All three are construction/engineering rather than design, and at that
+# volume they drown out the relevant hits.
 
 keywords:
+  # --- IT / разработка ---
   - "разработка сайта"
   - "создание сайта"
   - "разработка программного обеспечения"
   - "внедрение программного обеспечения"
   - "автоматизация бизнес-процессов"
   - "разработка чат-бота"
+  # --- Дизайн / интерьер / среда ---
+  - "дизайн-проект"                  # ~11 000 записей
+  - "дизайн интерьера"               # ~1 500
+  - "разработка дизайн-проекта"      # ~5 400
+  - "ландшафтное проектирование"     # 219
+  - "разработка фирменного стиля"    # 973
+  - "изготовление и монтаж вывески"  # ~1 100
+  - "оформление помещений"           # ~6 000
+  - "3D визуализация"                # 374

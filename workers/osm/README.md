@@ -10,7 +10,7 @@ means the tag was actually absent, not an artifact of an API plan
 withholding data (unlike some other sources - see `workers/twogis/README.md`
 for a contrasting example where that *is* a real caveat).
 
-**Охват:** 30 крупнейших городов РФ × 63 категории малого бизнеса = 1890 пар,
+**Охват:** 30 крупнейших городов РФ × 67 категорий малого бизнеса = 2010 пар,
 обходимых постепенно, по 50 за запуск - см. "Режим постепенного обхода".
 
 Fully self-contained - its own `requirements.txt`, its own `.env`, its own
@@ -61,7 +61,7 @@ pip install -r requirements.txt
 
 ### 3. Охват: `cities.yml` / `categories.yml`
 
-Ships with **30 cities × 63 categories = 1890 (city, category) pairs**.
+Ships with **30 cities × 67 categories = 2010 (city, category) pairs**.
 
 **`cities.yml`** - Russia's 30 largest cities as bounding boxes,
 `{name, bbox: [south, west, north, east]}`: every million-plus city plus
@@ -223,7 +223,7 @@ A run stops at whichever limit comes first:
 
 ## Режим постепенного обхода
 
-30 cities × 63 categories = **1890 Overpass queries** for one full sweep.
+30 cities × 67 categories = **2010 Overpass queries** for one full sweep.
 Done naively in a single run that is a guaranteed IP ban on the public
 instance - and it would take over an hour of continuous querying even at the
 pacing this worker uses.
@@ -244,7 +244,7 @@ Point it at a schedule and forget it:
 Every run prints where it got to and where the next one will resume:
 
 ```
-Обработано 350/1890 пар (за этот прогон 50), следующий запуск продолжит с: Уфа / Мебель
+Обработано 350/2010 пар (за этот прогон 50), следующий запуск продолжит с: Уфа / Мебель
 ```
 
 The grid is walked **city-major** - one city's categories are crawled
@@ -369,11 +369,11 @@ service nobody is paying for:
   mirrors are run by volunteers and funded by donations, for everyone. There
   is no paid tier we're declining to buy; there's just a shared resource.
 - **This worker is deliberately slow.** 5 seconds between requests, one
-  request at a time, no concurrency. A full 1890-pair sweep spends over 2.5
+  request at a time, no concurrency. A full 2010-pair sweep spends over 2.5
   hours just *pausing*. That's the point - it's spread across ~38 scheduled
   runs rather than fired off at once.
 - **Growing the grid did not grow the request rate.** Going from 1080 to
-  1890 pairs added more scheduled runs, not more load per run:
+  2010 pairs added more scheduled runs, not more load per run:
   `COMBOS_PER_RUN` still caps a run at 50 queries either way.
 - **Mirror rotation spreads load, it does not multiply quota.** The same
   pacing and the same backoff apply to whichever endpoint is in use, and we
@@ -415,7 +415,7 @@ ordinary Russian words (`Метро`, `Верный`, `Бургер` are **not**
 Every run ends with a stats line:
 
 ```
-osm.run_summary  combos_processed=50 grid_progress=350/1890 remaining_combos=1540
+osm.run_summary  combos_processed=50 grid_progress=350/2010 remaining_combos=1540
                  collected=143 elements_seen=250 skipped_no_name=50
                  skipped_chains=30 skipped_duplicates=27
                  with_phone=88 without_site=101
