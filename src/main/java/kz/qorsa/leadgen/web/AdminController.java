@@ -3,12 +3,14 @@ package kz.qorsa.leadgen.web;
 import kz.qorsa.leadgen.config.AdminProperties;
 import kz.qorsa.leadgen.service.AdminService;
 import kz.qorsa.leadgen.web.dto.DemoDataDeletionResponse;
+import kz.qorsa.leadgen.web.dto.RescoreResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -64,6 +66,26 @@ public class AdminController {
     public ResponseEntity<DemoDataDeletionResponse> deleteDemoData() {
         requireAdminEnabled();
         return ResponseEntity.ok(adminService.deleteDemoData());
+    }
+
+    /**
+     * Re-scores every stored company under the current rules and weights.
+     *
+     * <p>Needed because a score is written once, at ingest: without this, a
+     * change to the scoring model silently applies only to companies ingested
+     * after it, and the back catalogue keeps its old numbers forever.
+     *
+     * <p>Not destructive, but gated the same way - it rewrites every lead row
+     * in the table and is expensive enough that it shouldn't be reachable by
+     * accident.
+     *
+     * @return counts by status after the sweep, or 403 when admin operations
+     *         are disabled.
+     */
+    @PostMapping("/rescore")
+    public ResponseEntity<RescoreResponse> rescore() {
+        requireAdminEnabled();
+        return ResponseEntity.ok(adminService.rescoreAll());
     }
 
     private void requireAdminEnabled() {

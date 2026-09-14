@@ -55,6 +55,20 @@ class ScoringServiceTest {
     }
 
     @Test
+    void aProcurementNoticeCountsAsDirectIntent() {
+        // A published notice is a funded, dated request to buy this work -
+        // the strongest buying signal any source produces. While ZAKUPKI was
+        // missing from the set, procurement leads capped at 45 against a HOT
+        // threshold of 70 and not one could ever go hot.
+        Company company = baseCompany().hasSite(true).source(LeadSource.ZAKUPKI).build();
+
+        ScoringService.ScoreResult result = scoringService.score(company);
+
+        assertThat(result.score()).isEqualTo(35);
+        assertThat(result.reason()).isEqualTo("прямой интент");
+    }
+
+    @Test
     void nonDirectIntentSourceDoesNotAddWeight() {
         Company company = baseCompany().hasSite(true).source(LeadSource.GOOGLE_MAPS).build();
 

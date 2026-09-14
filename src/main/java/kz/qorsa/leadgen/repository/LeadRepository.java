@@ -34,6 +34,9 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
     @Query("select l from Lead l join fetch l.company order by l.score desc")
     List<Lead> findAllWithCompany();
 
+    /** How many leads currently sit at the given status - used by the rescore sweep's summary. */
+    long countByStatus(LeadStatus status);
+
     /**
      * Deletes every lead belonging to a company from the given source. Any
      * outreach rows must be gone first (see

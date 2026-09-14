@@ -23,12 +23,21 @@ import org.springframework.stereotype.Service;
 @Service
 public class ScoringService {
 
+    /**
+     * Sources where the company has already stated a need out loud, rather
+     * than merely looking like a plausible fit. ZAKUPKI belongs here for the
+     * strongest reason of all: a published notice is a funded, dated,
+     * legally-binding request to buy exactly this kind of work. Leaving it
+     * out capped every procurement lead at 45 against a HOT threshold of 70,
+     * so the source with the clearest buying signal could never go hot.
+     */
     private static final Set<LeadSource> DIRECT_INTENT_SOURCES =
             EnumSet.of(
                     LeadSource.TELEGRAM_ORDER,
                     LeadSource.INSTAGRAM_CTA,
                     LeadSource.VACANCY,
-                    LeadSource.AVITO_JOB);
+                    LeadSource.AVITO_JOB,
+                    LeadSource.ZAKUPKI);
 
     private final ScoringProperties properties;
 

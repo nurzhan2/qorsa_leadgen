@@ -1,10 +1,14 @@
 package kz.qorsa.leadgen.service;
 
+import java.util.List;
+import kz.qorsa.leadgen.domain.Company;
 import kz.qorsa.leadgen.domain.LeadSource;
+import kz.qorsa.leadgen.domain.LeadStatus;
 import kz.qorsa.leadgen.repository.CompanyRepository;
 import kz.qorsa.leadgen.repository.LeadRepository;
 import kz.qorsa.leadgen.repository.OutreachRepository;
 import kz.qorsa.leadgen.web.dto.DemoDataDeletionResponse;
+import kz.qorsa.leadgen.web.dto.RescoreResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,13 +28,49 @@ public class AdminService {
     private final CompanyRepository companyRepository;
     private final LeadRepository leadRepository;
     private final OutreachRepository outreachRepository;
+    private final IngestService ingestService;
 
     public AdminService(CompanyRepository companyRepository,
                         LeadRepository leadRepository,
-                        OutreachRepository outreachRepository) {
+                        OutreachRepository outreachRepository,
+                        IngestService ingestService) {
         this.companyRepository = companyRepository;
         this.leadRepository = leadRepository;
         this.outreachRepository = outreachRepository;
+        this.ingestService = ingestService;
+    }
+
+    /**
+     * Re-runs scoring over every stored company and refreshes its lead.
+     *
+     * <p>Scores are written once, at ingest. That is the right default - it
+     * keeps ingest cheap and the numbers stable - but it means a change to the
+     * weights in application.yml or to the rules in {@link ScoringService}
+     * only affects companies ingested afterwards, while everything already in
+     * the table keeps a score computed under the old model. This endpoint is
+     * how the back catalogue catches up.
+     *
+     * <p>Run it after any scoring change. It is idempotent: running it twice
+     * over an unchanged model produces identical scores.
+     */
+    @Transactional
+    public RescoreResponse rescoreAll() {
+        List<Company> companies = companyRepository.findAll();
+        for (Company company : companies) {
+            ingestService.rescore(company);
+        }
+
+        long hot = leadRepository.countByStatus(LeadStatus.HOT);
+        long qualified = leadRepository.countByStatus(LeadStatus.QUALIFIED);
+
+        log.warn("Rescored {} companies: hot={}, qualified={}", companies.size(), hot, qualified);
+
+        return RescoreResponse.builder()
+                .rescored(companies.size())
+                .hot(hot)
+                .qualified(qualified)
+                .cold(companies.size() - hot - qualified)
+                .build();
     }
 
     /**
