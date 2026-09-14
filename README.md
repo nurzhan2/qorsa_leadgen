@@ -56,7 +56,7 @@ Most "scrapers" dump raw contacts into a file. This one is designed as a **pipel
 
 - **Polyglot by design.** The core owns everything that must be correct and typed — dedup, scoring, persistence, the ingest contract. Workers are cheap and replaceable; a broken scraper never touches core logic. The seam between them is a single REST contract (`POST /companies/ingest`), so a new source is *just another worker*, no core changes required.
 
-- **Config-driven scoring.** Every scoring weight and threshold lives in `application.yml`, not in code. Rules like *"no website → +40"*, *"direct intent → +35"*, *"mobile number → +15"* can be tuned without recompiling.
+- **Config-driven scoring.** Every scoring weight and threshold lives in `application.yml`, not in code. Rules like *"no website → +40"*, *"direct intent → +35"*, *"mobile number → +15"* can be tuned without recompiling. Scores are written once, at ingest, so a tuning change only reaches companies stored afterwards — `POST /api/v1/admin/rescore` sweeps the back catalogue under the current model and reports the resulting HOT/QUALIFIED/cold counts. It sits behind the same kill-switch as the demo purge (`ADMIN_ENABLED=true` or the `demo` profile) and is idempotent.
 
 - **Deduplication as a first-class concern.** Companies arrive from many overlapping sources. Dedup runs on normalized domain, normalized phone, and fuzzy name matching (FuzzyWuzzy token-sort ratio), merging records and enriching empty fields rather than creating duplicates.
 
